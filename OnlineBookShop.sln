@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36915.13 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "onlinebookshop.client", "onlinebookshop.client\onlinebookshop.client.esproj", "{2CF7BB55-EE64-4384-8022-DB6346E8D40E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnlineBookShop.Server", "OnlineBookShop.Server\OnlineBookShop.Server.csproj", "{4695C916-202C-46AC-8FF7-D4E0F6DF26A3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2CF7BB55-EE64-4384-8022-DB6346E8D40E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2CF7BB55-EE64-4384-8022-DB6346E8D40E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2CF7BB55-EE64-4384-8022-DB6346E8D40E}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{2CF7BB55-EE64-4384-8022-DB6346E8D40E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2CF7BB55-EE64-4384-8022-DB6346E8D40E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2CF7BB55-EE64-4384-8022-DB6346E8D40E}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{4695C916-202C-46AC-8FF7-D4E0F6DF26A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4695C916-202C-46AC-8FF7-D4E0F6DF26A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4695C916-202C-46AC-8FF7-D4E0F6DF26A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4695C916-202C-46AC-8FF7-D4E0F6DF26A3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {111BE44E-555F-4BE1-970F-D677B6F65546}
+	EndGlobalSection
+EndGlobal

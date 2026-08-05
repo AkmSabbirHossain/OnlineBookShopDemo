@@ -135,7 +135,7 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
-
+builder.Services.AddHttpClient();
 // ================================================
 // Build & Configure the HTTP pipeline
 // ================================================

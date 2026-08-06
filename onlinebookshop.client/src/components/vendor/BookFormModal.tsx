@@ -146,6 +146,8 @@ function BookFormInner({
     //    }
     //};
     const handleSubmit = async () => {
+       
+        if (saving) return;
         if (!validate()) return;
         setModalError("");
 
@@ -166,12 +168,11 @@ function BookFormInner({
         };
 
         try {
-            await onSubmit(dto);    
+            await onSubmit(dto);
         } catch {
             setModalError("There is a problem, Try again");
         }
     };
-
     return (
         <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content border-0 shadow-lg rounded-3">

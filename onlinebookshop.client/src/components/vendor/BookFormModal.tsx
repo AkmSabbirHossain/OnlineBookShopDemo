@@ -115,6 +115,36 @@ function BookFormInner({
     };
 
     // ── Submit ──
+    //const handleSubmit = async () => {
+    //    if (!validate()) return;
+    //    setModalError("");
+
+    //    const dto = {
+    //        title: form.title.trim(),
+    //        author: form.author.trim(),
+    //        price: parseFloat(form.price),
+    //        stock: parseInt(form.stock),
+    //        description: form.description.trim() || undefined,
+    //        imageUrl: form.imageUrl.trim() || undefined,
+    //        categoryId: parseInt(form.categoryId),
+    //        // New fields added
+    //        discountPrice: form.discountPrice ? parseFloat(form.discountPrice) : undefined,
+    //        publisher: form.publisher.trim() || undefined,
+    //        edition: form.edition.trim() || undefined,
+    //        language: form.language.trim() || undefined,
+    //        isbn: form.isbn.trim() || undefined,
+    //        pageCount: form.pageCount ? parseInt(form.pageCount) : undefined,
+    //    };
+    //    console.log(dto);
+
+    //    await onSubmit(dto);
+
+    //    try {
+    //        await onSubmit(dto);
+    //    } catch {
+    //        setModalError("There is a problem, Try again");
+    //    }
+    //};
     const handleSubmit = async () => {
         if (!validate()) return;
         setModalError("");
@@ -127,20 +157,16 @@ function BookFormInner({
             description: form.description.trim() || undefined,
             imageUrl: form.imageUrl.trim() || undefined,
             categoryId: parseInt(form.categoryId),
-            // New fields added
             discountPrice: form.discountPrice ? parseFloat(form.discountPrice) : undefined,
             publisher: form.publisher.trim() || undefined,
             edition: form.edition.trim() || undefined,
             language: form.language.trim() || undefined,
             isbn: form.isbn.trim() || undefined,
-            pageCount: form.pageCount ? parseInt(form.pageCount) : undefined,       
+            pageCount: form.pageCount ? parseInt(form.pageCount) : undefined,
         };
-        console.log(dto);
-
-        await onSubmit(dto);
 
         try {
-            await onSubmit(dto);
+            await onSubmit(dto);    
         } catch {
             setModalError("There is a problem, Try again");
         }

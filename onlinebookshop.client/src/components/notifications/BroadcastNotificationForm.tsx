@@ -51,14 +51,14 @@ export default function BroadcastNotificationForm() {
                     style={{ background: "#E1F5EE", borderRadius: 10, color: "#0F6E56" }}
                 >
                     <i className="bi bi-check-circle-fill" />
-                    <span className="fw-semibold">Notification সফলভাবে পাঠানো হয়েছে!</span>
+                    <span className="fw-semibold">Notification send successfully!</span>
                 </div>
             )}
 
             {/* Target */}
             <div className="mb-3">
                 <label className="fw-semibold mb-2 d-block" style={{ fontSize: 13 }}>
-                    পাঠাবে কাকে?
+                    Who will you send?
                 </label>
                 <div className="d-flex gap-2">
                     {(["All", "Customer", "Vendor"] as const).map(t => (
@@ -75,7 +75,7 @@ export default function BroadcastNotificationForm() {
                                 fontSize: 13,
                             }}
                         >
-                            {t === "All" ? "সবাই" : t === "Customer" ? "Customer" : "Vendor"}
+                            {t === "All" ? "All" : t === "Customer" ? "Customer" : "Vendor"}
                         </button>
                     ))}
                 </div>
@@ -89,7 +89,7 @@ export default function BroadcastNotificationForm() {
                 <input
                     type="text"
                     className="form-control"
-                    placeholder="যেমন: ঈদ স্পেশাল অফার 🎉"
+                    placeholder="Eid Special offer 🎉"
                     value={form.title}
                     onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
                     style={{ borderRadius: 10, fontSize: 14 }}
@@ -103,7 +103,7 @@ export default function BroadcastNotificationForm() {
                 </label>
                 <textarea
                     className="form-control"
-                    placeholder="যেমন: ঈদ উপলক্ষে সব বইয়ে ১৫% ছাড়! আজই অর্ডার করুন।"
+                    placeholder="15% Discount for Eid! Order today."
                     rows={3}
                     value={form.message}
                     onChange={e => setForm(prev => ({ ...prev, message: e.target.value }))}
@@ -128,12 +128,12 @@ export default function BroadcastNotificationForm() {
                 {loading ? (
                     <>
                         <span className="spinner-border spinner-border-sm me-2" />
-                        পাঠানো হচ্ছে...
+                        Sending...
                     </>
                 ) : (
                     <>
                         <i className="bi bi-send-fill me-2" />
-                        Notification পাঠাও
+                        Notification Send
                     </>
                 )}
             </button>

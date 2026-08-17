@@ -94,7 +94,7 @@ namespace OnlineBookShop.Server.Application.Services
             }
             await _unitOfWork.SaveChangesAsync();
 
-            // ✅ Customer কে Order Confirmed notification
+            //  Customer  Order Confirmed notification
             await _notificationService.CreateNotificationAsync(new CreateNotificationDto
             {
                 UserId = userId,
@@ -253,7 +253,7 @@ namespace OnlineBookShop.Server.Application.Services
             order.Status = newStatus;
             _unitOfWork.Repository<Order>().Update(order);
 
-            // ✅ Delivered hole VendorEarning create koro
+            //  Delivered hole VendorEarning create koro
             if (newStatus == OrderStatus.Delivered)
             {
                 foreach (var item in order.OrderItems)
@@ -280,7 +280,7 @@ namespace OnlineBookShop.Server.Application.Services
 
             await _unitOfWork.SaveChangesAsync();
 
-            // ✅ Status অনুযায়ী Customer কে notification
+            //  Status wise Customer  notification
             var (title, message) = newStatus switch
             {
                 OrderStatus.Paid => ("পেমেন্ট সফল 💳",

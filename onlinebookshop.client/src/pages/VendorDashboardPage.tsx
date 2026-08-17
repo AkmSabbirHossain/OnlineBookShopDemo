@@ -304,7 +304,7 @@ export default function VendorDashboardPage() {
                                             )}
                                         </div>
 
-                                        {/* ✅ bookId pass করো */}
+                                        {/* bookId pass*/}
                                         <StockHistoryTable bookId={selectedBookId} />
                                     </div>
                                 )}

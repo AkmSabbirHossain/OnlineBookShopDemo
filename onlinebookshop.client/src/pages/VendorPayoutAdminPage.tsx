@@ -38,7 +38,7 @@ export default function VendorPayoutAdminPage() {
     };
 
     const handleProcessPayout = async (vendorId: number) => {
-        if (!window.confirm("এই vendor এর জন্য payout process করবেন?")) return;
+        if (!window.confirm("Will you process payout for this vendor?")) return;
 
         setProcessingId(vendorId);
         setError(null);
@@ -47,7 +47,7 @@ export default function VendorPayoutAdminPage() {
             await loadSummary();
             setExpandedVendorId(null);
         } catch {
-            setError("Payout process করতে সমস্যা হয়েছে।");
+            setError("There is problem to process payout");
         } finally {
             setProcessingId(null);
         }
@@ -159,7 +159,7 @@ export default function VendorPayoutAdminPage() {
 
                 {summaries.length === 0 ? (
                     <div className="text-center text-muted rounded-4 py-5" style={{ background: "rgba(139,92,246,0.05)" }}>
-                        <p className="mb-0 fst-italic">এই মুহূর্তে কোনো pending payout নেই।</p>
+                        <p className="mb-0 fst-italic">There is no pending payout at this moment</p>
                     </div>
                 ) : (
                     <div className="rounded-4 shadow-sm" style={{ overflow: "hidden" }}>

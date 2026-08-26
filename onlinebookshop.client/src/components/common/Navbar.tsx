@@ -739,7 +739,8 @@ export default function Navbar() {
                             {user ? (
                                 <div style={{ position: "relative" }} ref={dropdownRef}>
                                     <button className="nb-user-btn" onClick={() => setDropdownOpen((p) => !p)}>
-                                        <div className="nb-user-avatar">{user.name.charAt(0).toUpperCase()}</div>
+                                        {/*<div className="nb-user-avatar">{user.name.charAt(0).toUpperCase()}</div>*/}
+                                        <div className="nb-user-avatar"><span>{user?.name ? user.name.charAt(0).toUpperCase() : "U"}</span></div>
                                         <span className="nb-user-name">{user.name.split(" ")[0]}</span>
                                         <ChevronDownIcon open={dropdownOpen} />
                                     </button>

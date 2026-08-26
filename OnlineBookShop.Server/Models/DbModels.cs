@@ -133,7 +133,17 @@ namespace OnlineBookShop.Server.Models
         public ICollection<VendorPayout> VendorPayouts { get; set; } = new List<VendorPayout>();
     }
 
-
+    public class Banner
+    {
+        public int BannerId { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Subtitle { get; set; }
+        public string ImageUrl { get; set; } = null!;
+        public string? LinkUrl { get; set; }
+        public int DisplayOrder { get; set; } = 0;
+        public bool IsActive { get; set; } = true;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
 
     // =====================================
     // CATEGORY

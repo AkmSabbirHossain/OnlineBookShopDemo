@@ -112,6 +112,37 @@ namespace OnlineBookShop.Server.DTOs
         public string? BusinessRegistrationNumber { get; set; }
     }
 
+    // =====================================
+    // BANNER
+    // =====================================
+    public class BannerCreateDto
+    {
+        [Required, MaxLength(150)]
+        public string Title { get; set; } = null!;
+
+        [MaxLength(200)]
+        public string? Subtitle { get; set; }
+
+        [Required, Url, MaxLength(500)]
+        public string ImageUrl { get; set; } = null!;
+
+        [Url, MaxLength(500)]
+        public string? LinkUrl { get; set; }
+
+        public int DisplayOrder { get; set; } = 0;
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class BannerResponseDto
+    {
+        public int BannerId { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Subtitle { get; set; }
+        public string ImageUrl { get; set; } = null!;
+        public string? LinkUrl { get; set; }
+        public int DisplayOrder { get; set; }
+        public bool IsActive { get; set; }
+    }
 
     // =====================================
     // CATEGORY

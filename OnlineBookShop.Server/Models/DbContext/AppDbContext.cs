@@ -27,7 +27,7 @@ namespace OnlineBookShop.Server.Models.DbContext
         public DbSet<Notification> Notifications { get; set; } = null!;
         public DbSet<AuditLog> AuditLogs { get; set; } = null!;
         public DbSet<VendorEarning> VendorEarnings { get; set; } = null!;
-
+        public DbSet<Banner> Banners { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -427,6 +427,34 @@ namespace OnlineBookShop.Server.Models.DbContext
                 property.SetPrecision(18);
                 property.SetScale(2);
             }
+
+            // ============================
+            // BANNER
+            // ============================
+            modelBuilder.Entity<Banner>(entity =>
+            {
+                entity.HasKey(b => b.BannerId);
+
+                entity.Property(b => b.Title)
+                      .HasMaxLength(150)
+                      .IsRequired();
+
+                entity.Property(b => b.Subtitle)
+                      .HasMaxLength(200);
+
+                entity.Property(b => b.ImageUrl)
+                      .HasMaxLength(500)
+                      .IsRequired();
+
+                entity.Property(b => b.LinkUrl)
+                      .HasMaxLength(500);
+
+                entity.Property(b => b.DisplayOrder)
+                      .HasDefaultValue(0);
+
+                entity.Property(b => b.IsActive)
+                      .HasDefaultValue(true);
+            });
 
         }
     }

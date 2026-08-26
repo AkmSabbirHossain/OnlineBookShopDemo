@@ -77,6 +77,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IWishlistService, WishlistService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IVendorPayoutService, VendorPayoutService>();
+builder.Services.AddScoped<IBannerService, BannerService>();
 
 
 // 7. AutoMapper
@@ -88,9 +89,10 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp", policy =>
     {
 
-        policy.WithOrigins("https://sabbirbookworld.vercel.app")
+      //  policy.WithOrigins("http://localhost:5173","http://localhost:5174")
+             policy.WithOrigins("https://sabbirbookworld.vercel.app")
 
-           .AllowAnyHeader()
+            .AllowAnyHeader()
          .AllowAnyMethod()
          .AllowCredentials();
     });

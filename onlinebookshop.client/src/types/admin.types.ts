@@ -30,13 +30,23 @@ export interface VendorResponseDto {
     adminNote?: string;         
 }
 
+//export interface CategoryCreateDto {
+//    name: string;
+//}
+
+//export interface CategoryResponseDto {
+//    categoryId: number;
+//    name: string;
+//}
 export interface CategoryCreateDto {
     name: string;
+    imageUrl?: string;
 }
 
 export interface CategoryResponseDto {
     categoryId: number;
     name: string;
+    imageUrl?: string;
 }
 
 

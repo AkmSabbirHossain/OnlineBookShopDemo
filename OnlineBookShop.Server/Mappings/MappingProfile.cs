@@ -64,6 +64,10 @@ namespace OnlineBookShop.Server.Application.Mappings
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
             CreateMap<Address, AddressResponseDto>();
 
+            // --- Banner mappings ---
+            CreateMap<BannerCreateDto, Banner>();
+            CreateMap<Banner, BannerResponseDto>();
+
             // --- Category mappings ---
             CreateMap<CategoryCreateDto, Category>();
             CreateMap<Category, CategoryResponseDto>();

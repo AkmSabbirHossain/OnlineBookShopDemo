@@ -1,0 +1,42 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Sabbir Book World emblem</title>
+  <desc>Circular gold emblem featuring a detailed open book with a fountain pen nib, and curved text reading Sabbir Book World</desc>
+
+  <defs>
+    <linearGradient id="goldFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F6DE8C"/>
+      <stop offset="45%" stop-color="#D6A93C"/>
+      <stop offset="100%" stop-color="#9C7412"/>
+    </linearGradient>
+    <linearGradient id="ringGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EFCB6B"/>
+      <stop offset="100%" stop-color="#A9791A"/>
+    </linearGradient>
+    <path id="textCircle" d="M36,200 A164,164 0 0 1 364,200"/>
+  </defs>
+
+  <circle cx="200" cy="200" r="192" fill="none" stroke="url(#ringGold)" stroke-width="3"/>
+  <circle cx="200" cy="200" r="176" fill="none" stroke="url(#ringGold)" stroke-width="9"/>
+
+  <text font-size="22" font-weight="600" letter-spacing="3" fill="#6E5410" font-family="Georgia, 'Times New Roman', serif">
+    <textPath href="#textCircle" startOffset="50%" text-anchor="middle">SABBIR BOOK WORLD</textPath>
+  </text>
+
+  <circle cx="200" cy="200" r="150" fill="url(#goldFill)" stroke="#8A6710" stroke-width="1.5"/>
+
+  <path d="M200,140 L212,175 L206,190 L200,200 L194,190 L188,175 Z" fill="#6E5410" stroke="#4A3608" stroke-width="1.2"/>
+  <circle cx="200" cy="177" r="3.5" fill="url(#goldFill)"/>
+  <rect x="194" y="188" width="12" height="58" fill="#6E5410" stroke="#4A3608" stroke-width="1.2"/>
+
+  <path d="M200,196 C150,178 92,196 78,222 L78,252 C92,232 150,222 200,240 Z" fill="#6E5410" stroke="#4A3608" stroke-width="1.2"/>
+  <path d="M92,209 C110,201 130,199 148,203" fill="none" stroke="#F6DE8C" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M89,220 C108,211 130,209 150,213" fill="none" stroke="#F6DE8C" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M88,231 C107,222 130,220 151,224" fill="none" stroke="#F6DE8C" stroke-width="1.4" stroke-linecap="round"/>
+
+  <path d="M200,196 C250,178 308,196 322,222 L322,252 C308,232 250,222 200,240 Z" fill="#6E5410" stroke="#4A3608" stroke-width="1.2"/>
+  <path d="M308,209 C290,201 270,199 252,203" fill="none" stroke="#F6DE8C" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M311,220 C292,211 270,209 250,213" fill="none" stroke="#F6DE8C" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M312,231 C293,222 270,220 249,224" fill="none" stroke="#F6DE8C" stroke-width="1.4" stroke-linecap="round"/>
+
+  <path d="M191,240 L209,240 L204,278 L196,278 Z" fill="#6E5410" stroke="#4A3608" stroke-width="1.2"/>
+</svg>

@@ -27,7 +27,7 @@ import { NotificationProvider } from "./context/NotificationContext";
 import AuthService from "./services/auth.service";
 
 // ── Context ──
-import WishlistProvider from "./context/wishlist/WishlistProvider"; 
+import WishlistProvider from "./context/wishlist/WishlistProvider";
 
 import VendorEarningsPage from "./components/vendor/VendorEarningsPage";
 import VendorPayoutAdminPage from "./pages/VendorPayoutAdminPage";
@@ -95,89 +95,89 @@ export default function App() {
     return (
         <BrowserRouter>
             <WishlistProvider>
-            <NotificationProvider>  
-                <Routes>
+                <NotificationProvider>
+                    <Routes>
 
-                    {/* ── Public: Login ── */}
-                    <Route
-                        path="/auth"
-                        element={
-                            <GuestRoute>
-                                <AuthPage />
-                            </GuestRoute>
-                        }
-                    />
-                    {/* /login ও /register → AuthPage redirect */}
-                    <Route path="/login" element={<Navigate to="/auth" replace />} />
-                    <Route path="/register" element={<Navigate to="/auth" replace />} />
+                        {/* ── Public: Login ── */}
+                        <Route
+                            path="/auth"
+                            element={
+                                <GuestRoute>
+                                    <AuthPage />
+                                </GuestRoute>
+                            }
+                        />
+                        {/* /login ও /register → AuthPage redirect */}
+                        <Route path="/login" element={<Navigate to="/auth" replace />} />
+                        <Route path="/register" element={<Navigate to="/auth" replace />} />
 
-                    {/* ── Customer Routes ── */}
-                    <Route path="/" element={<HomePage />} />
+                        {/* ── Customer Routes ── */}
+                        <Route path="/" element={<HomePage />} />
 
-                    <Route
-                        path="/cart"
-                        element={
-                            <ProtectedRoute>
-                                <CartPage />
-                            </ProtectedRoute>
-                        }
-                    />
+                        <Route
+                            path="/cart"
+                            element={
+                                <ProtectedRoute>
+                                    <CartPage />
+                                </ProtectedRoute>
+                            }
+                        />
 
-                    <Route
-                        path="/checkout"
-                        element={
-                            <ProtectedRoute>
-                                <CheckoutPage />
-                            </ProtectedRoute>
-                        }
-                    />
+                        <Route
+                            path="/checkout"
+                            element={
+                                <ProtectedRoute>
+                                    <CheckoutPage />
+                                </ProtectedRoute>
+                            }
+                        />
 
-                    <Route
-                        path="/orders"
-                        element={
-                            <ProtectedRoute>
-                                <OrdersPage />
-                            </ProtectedRoute>
-                        }
-                    />
+                        <Route
+                            path="/orders"
+                            element={
+                                <ProtectedRoute>
+                                    <OrdersPage />
+                                </ProtectedRoute>
+                            }
+                        />
 
-                    <Route path="/books/:id" element={<BookDetailPage />} />
+                        <Route path="/books/:id" element={<BookDetailPage />} />
 
-                    {/* ── Vendor Routes ── */}
-                    <Route
-                        path="/vendor/dashboard"
-                        element={
-                            <RoleRoute allowedRoles={["Vendor"]}>
-                                <VendorDashboardPage />
-                            </RoleRoute>
-                        }
-                    />
+                        {/* ── Vendor Routes ── */}
+                        <Route
+                            path="/vendor/dashboard"
+                            element={
+                                <RoleRoute allowedRoles={["Vendor"]}>
+                                    <VendorDashboardPage />
+                                </RoleRoute>
+                            }
+                        />
 
-                    {/* ── VendorRegistraionPage  ── */}
-                    <Route
-                        path="/vendor/register"
-                        element={
-                            <ProtectedRoute>
-                                <VendorRegisterPage />
-                            </ProtectedRoute>
-                        }
-                    />
+                        {/* ── VendorRegistraionPage  ── */}
+                        <Route
+                            path="/vendor/register"
+                            element={
+                                <ProtectedRoute>
+                                    <VendorRegisterPage />
+                                </ProtectedRoute>
+                            }
+                        />
 
-                    <Route path="/logout" element={<LogoutPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                        <Route path="/logout" element={<LogoutPage />} />
+                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-                    {/* ── Admin Routes ── */}
-                    <Route
-                        path="/admin/dashboard"
-                        element={
-                            <RoleRoute allowedRoles={["Admin"]}>
-                                <AdminDashboardPage />
-                            </RoleRoute>
-                        }
-                    />
+                        {/* ── Admin Routes ── */}
+                        <Route
+                            path="/admin/dashboard"
+                            element={
+                                <RoleRoute allowedRoles={["Admin"]}>
+                                    <AdminDashboardPage />
+                                </RoleRoute>
+                            }
+                        />
 
-                    <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
                         <Route path="/wishlist" element={<WishlistPage />} />
                         {/* ── Vendor Payout Routes ── */}
@@ -200,18 +200,16 @@ export default function App() {
                         />
 
 
-                    {/* ── Fallback (always last) ── */}
-                    <Route path="*" element={<NotFoundPage />} />
-           
-               
+                        {/* ── Fallback (always last) ── */}
+                        <Route path="*" element={<NotFoundPage />} />
+
+
                     </Routes>
-                </NotificationProvider>  
+                </NotificationProvider>
             </WishlistProvider>
         </BrowserRouter>
     );
 }
-
-
 
 
 

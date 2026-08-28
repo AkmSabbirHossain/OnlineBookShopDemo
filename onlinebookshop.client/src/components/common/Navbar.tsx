@@ -7,13 +7,14 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import AuthService from "../../services/auth.service";
 import CartService from "../../services/cart.service";
 import NotificationBell from "../notifications/NotificationBell";
+import brandIcon from "../../assets/brand-icon.svg";
 
 // ── SVG Icons ────────────────────────────────
-const BookIcon = () => (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-    </svg>
-);
+//const BookIcon = () => (
+//    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+//        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+//    </svg>
+//);
 const SearchIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
         <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -671,8 +672,16 @@ export default function Navbar() {
                     <div className="nb-main-inner">
 
                         {/* Brand */}
+                        {/*<Link className="nb-brand" to="/">*/}
+                        {/*    <div className="nb-brand-icon"><BookIcon /></div>*/}
+                        {/*    <div className="nb-brand-text">*/}
+                        {/*        <span className="nb-brand-name">Sabbir Book<span>Mall</span></span>*/}
+                        {/*        <span className="nb-brand-tagline">Welcome to book world</span>*/}
+                        {/*    </div>*/}
+                        {/*</Link>*/}
+                        {/* Brand */}
                         <Link className="nb-brand" to="/">
-                            <div className="nb-brand-icon"><BookIcon /></div>
+                            <img src={brandIcon} alt="Sabbir Book Mall" className="nb-brand-icon" />
                             <div className="nb-brand-text">
                                 <span className="nb-brand-name">Sabbir Book<span>Mall</span></span>
                                 <span className="nb-brand-tagline">Welcome to book world</span>

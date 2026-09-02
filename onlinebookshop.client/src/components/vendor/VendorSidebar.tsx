@@ -4,7 +4,7 @@
 
 import type { VendorResponseDto } from "../../types/vendor.types";
 
-type Tab = "books" | "orders" | "stockHistory" | "sales" | "profile" | "security";
+type Tab = "books" | "orders" | "stockHistory" | "sales" | "earnings" | "profile" | "security";
 
 interface SidebarProps {
     activeTab: Tab;
@@ -56,6 +56,18 @@ const menuItems = [
             iconBg: "#34A853",
             text: "#137333",
             bar: "#34A853",
+        },
+    },
+    // ── Vendor Earnings ──
+    {
+        id: "earnings" as Tab,
+        label: "Vendor Earnings",
+        icon: "bi-cash-coin",
+        colors: {
+            bg: "#EDE9FE",
+            iconBg: "#8B5CF6",
+            text: "#5B21B6",
+            bar: "#8B5CF6",
         },
     },
     {

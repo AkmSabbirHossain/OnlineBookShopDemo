@@ -23,7 +23,7 @@ export default function VendorEarningsPage() {
                 setEarnings(earningsData);
                 setHistory(historyData);
             } catch {
-                setError("তথ্য load করা যায়নি। আবার চেষ্টা করুন।");
+                setError("Data does not load. Try again।");
             } finally {
                 setLoading(false);
             }
@@ -58,7 +58,7 @@ export default function VendorEarningsPage() {
     if (!vendorId)
         return (
             <div className="text-center mt-5 text-muted">
-                <h5>Vendor profile পাওয়া যায়নি।</h5>
+                <h5>Does not found v`````````endor profile </h5>
             </div>
         );
 

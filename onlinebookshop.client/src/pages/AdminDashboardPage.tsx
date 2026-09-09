@@ -68,7 +68,7 @@ export default function AdminDashboardPage() {
                 setBanners(bannersData);
             } catch (err: unknown) {
                 if (axios.isAxiosError(err)) {
-                    setError(err.response?.data?.message || "Data load e problem hoyeche");
+                    setError(err.response?.data?.message || "There is a problem loading data");
                 } else {
                     setError("Something went wrong.");
                 }

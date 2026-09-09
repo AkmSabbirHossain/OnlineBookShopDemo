@@ -1,5 +1,5 @@
 ﻿// =============================================
-// VendorDashboardPage.tsx — Added: Vendor Earnings tab
+// VendorDashboardPage.tsx
 // =============================================
 
 import { useState, useEffect } from "react";
@@ -15,12 +15,10 @@ import VendorSidebar from "../components/vendor/VendorSidebar";
 import ChangePassword from "../components/profile/ChangePassword";
 import { StockHistoryTable } from "../components/StockHistory/StockHistoryTable";
 import SalesAnalytics from "../components/vendor/SalesAnalytics";
-import VendorEarningsPage from "../components/vendor/VendorEarningsPage"; // ← path ঠিক আছে কিনা চেক করে নিও
-
+import VendorEarningsPage from "../components/vendor/VendorEarningsPage"; 
 import VendorService from "../services/vendor.service";
 import BookService from "../services/book.service";
 import OrderService from "../services/order.service";
-
 import type { VendorResponseDto } from "../types/vendor.types";
 import type { BookResponseDto, BookCreateDto, BookUpdateDto, CategoryResponseDto } from "../types/book.types";
 import type { OrderResponseDto, OrderStatus } from "../types/order.types";

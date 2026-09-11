@@ -1,5 +1,5 @@
 ﻿// =============================================
-// AdminDashboardPage.tsx — Fixed Version
+// AdminDashboardPage.tsx
 // =============================================
 import { useState, useEffect } from "react";
 import axios from "axios";

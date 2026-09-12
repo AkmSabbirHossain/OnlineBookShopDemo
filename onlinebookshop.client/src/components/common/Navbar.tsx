@@ -773,11 +773,11 @@ export default function Navbar() {
                                                 </>)}
                                                 {user.role === "Vendor" && (<>
                                                     <Link className="nb-dropdown-item" to="/vendor/dashboard" onClick={() => setDropdownOpen(false)}><ShopIcon /> Vendor Dashboard</Link>
-                                                    <Link className="nb-dropdown-item" to="/vendor/earnings" onClick={() => setDropdownOpen(false)}><OrderIcon /> My Earnings</Link>
+                                                
                                                 </>)}
                                                 {user.role === "Admin" && (<>
                                                     <Link className="nb-dropdown-item" to="/admin/dashboard" onClick={() => setDropdownOpen(false)}><GearIcon /> Admin Panel</Link>
-                                                    <Link className="nb-dropdown-item" to="/admin/vendor-payouts" onClick={() => setDropdownOpen(false)}><OrderIcon /> Vendor Payouts</Link>
+                                                    
                                                 </>)}
                                                 <div className="nb-dropdown-divider" />
                                                 <button className="nb-dropdown-item danger" onClick={handleLogout}><LogoutIcon /> Logout</button>

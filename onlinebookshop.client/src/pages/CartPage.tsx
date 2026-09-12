@@ -17,7 +17,7 @@ export default function CartPage() {
     const [error, setError] = useState("");
     const [clearing, setClearing] = useState(false);
 
-    // ── Fetch Cart (শুধু প্রথমবার / manual retry এর জন্য loading spinner দেখাবে) ──
+ 
     const fetchCart = async (showSpinner = false) => {
         if (showSpinner) setLoading(true);
         setError("");
@@ -40,11 +40,8 @@ export default function CartPage() {
     // ── Quantity Update (Optimistic) ──
     const handleQuantityChange = async (bookId: number, quantity: number) => {
         if (!cart) return;
-
-        // আগের state রাখো, error হলে rollback করার জন্য
         const prevCart = cart;
 
-        // সাথে সাথে UI update করে দাও, spinner ছাড়াই
         const updatedItems = cart.items.map((item) =>
             item.bookId === bookId
                 ? { ...item, quantity, subtotal: item.bookPrice * quantity }
@@ -55,10 +52,9 @@ export default function CartPage() {
 
         try {
             await CartService.updateItem({ bookId, quantity });
-            // background এ silently sync করে নাও (server-calculated total এর জন্য), spinner ছাড়া
             fetchCart(false);
         } catch {
-            setCart(prevCart); // fail করলে আগের state এ ফিরিয়ে দাও
+            setCart(prevCart); 
         }
     };
 

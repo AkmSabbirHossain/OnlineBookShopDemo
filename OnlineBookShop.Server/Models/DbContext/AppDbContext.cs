@@ -28,6 +28,7 @@ namespace OnlineBookShop.Server.Models.DbContext
         public DbSet<AuditLog> AuditLogs { get; set; } = null!;
         public DbSet<VendorEarning> VendorEarnings { get; set; } = null!;
         public DbSet<Banner> Banners { get; set; } = null!;
+        public DbSet<BookImage> BookImages { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -164,6 +165,22 @@ namespace OnlineBookShop.Server.Models.DbContext
                 entity.Property(b => b.IsFeatured)
                       .HasDefaultValue(false);
 
+                entity.Property(b => b.IsDeleted)
+                      .HasDefaultValue(false);
+
+                entity.Property(b => b.AverageRating)
+                      .HasDefaultValue(0m);
+
+                entity.Property(b => b.ReviewCount)
+                      .HasDefaultValue(0);
+
+                entity.Property(b => b.LowStockThreshold)
+                      .HasDefaultValue(5);
+
+                entity.HasIndex(b => new { b.IsDeleted, b.IsActive });
+                entity.HasIndex(b => b.AverageRating);
+                entity.HasIndex(b => b.ReviewCount);
+
                 // Date fields
                 entity.Property(b => b.CreatedAt)
                       .HasDefaultValueSql("GETUTCDATE()");
@@ -282,6 +299,23 @@ namespace OnlineBookShop.Server.Models.DbContext
                     "CK_Review_Rating",
                     "[Rating] BETWEEN 1 AND 5"
                 ));
+            });
+
+            // ============================
+            // Book gallery
+            // ============================
+            modelBuilder.Entity<BookImage>(entity =>
+            {
+                entity.HasKey(i => i.BookImageId);
+                entity.Property(i => i.ImageUrl)
+                      .HasMaxLength(500)
+                      .IsRequired();
+                entity.HasIndex(i => new { i.BookId, i.DisplayOrder });
+
+                entity.HasOne(i => i.Book)
+                      .WithMany(b => b.Images)
+                      .HasForeignKey(i => i.BookId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ============================

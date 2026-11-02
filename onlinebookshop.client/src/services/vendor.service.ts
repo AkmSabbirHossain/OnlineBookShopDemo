@@ -58,7 +58,7 @@
 
 import axiosInstance from "./axiosInstance";
 import type { VendorResponseDto, VendorRegisterDto } from "../types/vendor.types";
-import type { BookResponseDto, BookCreateDto, BookUpdateDto } from "../types/book.types";
+import type { BookImageDto, BookResponseDto, BookCreateDto, BookUpdateDto } from "../types/book.types";
 
 const VendorService = {
 
@@ -114,9 +114,42 @@ const VendorService = {
         return res.data;
     },
 
+    // ── PATCH /api/book/:id/status ──
+    setBookStatus: async (
+        bookId: number,
+        status: { isActive?: boolean; isFeatured?: boolean }
+    ): Promise<BookResponseDto> => {
+        const res = await axiosInstance.patch<BookResponseDto>(`/book/${bookId}/status`, status);
+        return res.data;
+    },
+
     // ── DELETE /api/books/:id ──
     deleteBook: async (bookId: number): Promise<void> => {
         await axiosInstance.delete(`/book/${bookId}`);
+    },
+
+    // ── POST /api/book/:id/images ──
+    uploadBookImage: async (bookId: number, file: File): Promise<BookImageDto> => {
+        const formData = new FormData();
+        formData.append("file", file);
+        // Override the client's default JSON content type so the browser
+        // sends a real multipart body with the correct boundary.
+        const res = await axiosInstance.post<BookImageDto>(`/book/${bookId}/images`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        return res.data;
+    },
+
+    // ── DELETE /api/book/:id/images/:imageId ──
+    deleteBookImage: async (bookId: number, imageId: number): Promise<BookImageDto> => {
+        const res = await axiosInstance.delete<BookImageDto>(`/book/${bookId}/images/${imageId}`);
+        return res.data;
+    },
+
+    // ── PATCH /api/book/:id/images/:imageId/primary ──
+    setPrimaryBookImage: async (bookId: number, imageId: number): Promise<BookImageDto> => {
+        const res = await axiosInstance.patch<BookImageDto>(`/book/${bookId}/images/${imageId}/primary`);
+        return res.data;
     },
 
     //--update vendor profile

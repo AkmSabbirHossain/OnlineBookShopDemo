@@ -1,4 +1,6 @@
-﻿using OnlineBookShop.Server.Infrastructure.Repositories;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using OnlineBookShop.Server.Infrastructure.Repositories;
 using OnlineBookShop.Server.Interfaces;
 using OnlineBookShop.Server.Models;
 using OnlineBookShop.Server.Models.DbContext;
@@ -31,6 +33,12 @@ namespace OnlineBookShop.Server.Infrastructure.Data
         {
             return await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+            => _context.Database.BeginTransactionAsync(cancellationToken);
+
+        public Task<int> ExecuteSqlInterpolatedAsync(FormattableString sql, CancellationToken cancellationToken = default)
+            => _context.Database.ExecuteSqlInterpolatedAsync(sql, cancellationToken);
         public async ValueTask DisposeAsync()
         {
             await _context.DisposeAsync();

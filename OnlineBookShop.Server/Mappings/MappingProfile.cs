@@ -44,7 +44,10 @@ namespace OnlineBookShop.Server.Application.Mappings
             CreateMap<BookCreateDto, Book>();
             CreateMap<BookUpdateDto, Book>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
-            CreateMap<Book, BookResponseDto>();
+            CreateMap<Book, BookResponseDto>()
+                .ForMember(dest => dest.Images, opt => opt.MapFrom(src =>
+                    src.Images.OrderBy(i => i.DisplayOrder).ThenBy(i => i.BookImageId)));
+            CreateMap<BookImage, BookImageDto>();
 
             // --- Order mappings ---
 
@@ -75,13 +78,13 @@ namespace OnlineBookShop.Server.Application.Mappings
             // Cart → CartResponseDto
             CreateMap<Cart, CartResponseDto>()
                 .ForMember(dest => dest.Items, opt => opt.MapFrom(src => src.CartItems))
-                .ForMember(dest => dest.TotalAmount, opt => opt.MapFrom(src => 
-                src.CartItems.Sum(ci => ci.Quantity * ci.Book.Price)));
+                .ForMember(dest => dest.TotalAmount, opt => opt.MapFrom(src =>
+                src.CartItems.Sum(ci => ci.Quantity * GetUnitPrice(ci.Book))));
 
             CreateMap<CartItem, CartItemResponseDto>()
                 .ForMember(dest => dest.BookTitle, opt => opt.MapFrom(src => src.Book.Title))
-                .ForMember(dest => dest.BookPrice, opt => opt.MapFrom(src => src.Book.Price))
-                .ForMember(dest => dest.Subtotal, opt => opt.MapFrom(src => src.Quantity * src.Book.Price))
+                .ForMember(dest => dest.BookPrice, opt => opt.MapFrom(src => GetUnitPrice(src.Book)))
+                .ForMember(dest => dest.Subtotal, opt => opt.MapFrom(src => src.Quantity * GetUnitPrice(src.Book)))
                 .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src => src.Book.ImageUrl));
 
             // --- Review mappings ---
@@ -130,6 +133,9 @@ namespace OnlineBookShop.Server.Application.Mappings
       .ForMember(dest => dest.Stock, opt => opt.MapFrom(src => src.Book.Stock));
         }
 
-
+        private static decimal GetUnitPrice(Book book) =>
+            book.DiscountPrice.HasValue && book.DiscountPrice.Value < book.Price
+                ? book.DiscountPrice.Value
+                : book.Price;
     }
 }

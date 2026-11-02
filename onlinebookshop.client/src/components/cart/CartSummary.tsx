@@ -1,4 +1,4 @@
-﻿// =============================================
+// =============================================
 // CartSummary.tsx — Price breakdown sidebar
 // =============================================
 
@@ -13,103 +13,120 @@ interface Props {
 
 const DELIVERY_CHARGE = 60;
 const FREE_DELIVERY_THRESHOLD = 500;
+const currency = new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function CartSummary({ totalAmount, itemCount, onClearCart, clearing }: Props) {
     const navigate = useNavigate();
     const isFreeDelivery = totalAmount >= FREE_DELIVERY_THRESHOLD;
     const deliveryCharge = isFreeDelivery ? 0 : DELIVERY_CHARGE;
     const grandTotal = totalAmount + deliveryCharge;
+    const remainingForFree = Math.max(0, FREE_DELIVERY_THRESHOLD - totalAmount);
+    const progress = Math.min(100, Math.round((totalAmount / FREE_DELIVERY_THRESHOLD) * 100));
 
     return (
-        <div className="card border-0 shadow-sm rounded-3 sticky-top" style={{ top: "80px" }}>
-            <div className="card-header bg-dark text-white rounded-top-3 py-3">
-                <h6 className="mb-0 fw-bold">
-                    <i className="bi bi-receipt me-2"></i>
+        <div className="cp-summary">
+            <div className="cp-summary-head">
+                <h2>
+                    <i className="bi bi-receipt" aria-hidden="true"></i>
                     Order Summary
-                </h6>
+                </h2>
+                <span className="cp-summary-count">
+                    {itemCount} item{itemCount !== 1 ? "s" : ""}
+                </span>
             </div>
 
-            <div className="card-body p-4">
-
-                {/* Price Breakdown */}
-                <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted">Subtotal ({itemCount} items)</span>
-                    <span className="fw-semibold">৳ {totalAmount.toFixed(2)}</span>
+            <div className="cp-summary-body">
+                <div className="cp-row">
+                    <span>Subtotal</span>
+                    <b>৳ {currency.format(totalAmount)}</b>
                 </div>
 
-                <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted">Delivery Charge</span>
+                <div className="cp-row">
+                    <span>Delivery charge</span>
                     {isFreeDelivery ? (
-                        <span className="text-success fw-semibold">FREE</span>
+                        <b className="cp-free-tag">FREE</b>
                     ) : (
-                        <span className="fw-semibold">৳ {DELIVERY_CHARGE.toFixed(2)}</span>
+                        <b>৳ {currency.format(DELIVERY_CHARGE)}</b>
                     )}
                 </div>
 
-                {/* Free delivery progress */}
-                {!isFreeDelivery && (
-                    <div className="mb-3">
-                        <div className="progress" style={{ height: "5px" }}>
-                            <div
-                                className="progress-bar bg-success"
-                                style={{ width: `${Math.min((totalAmount / FREE_DELIVERY_THRESHOLD) * 100, 100)}%` }}
-                            />
-                        </div>
-                        <small className="text-muted d-block mt-1">
-                            Add ৳ {(FREE_DELIVERY_THRESHOLD - totalAmount).toFixed(2)} more for free delivery
-                        </small>
+                <div className={`cp-free${isFreeDelivery ? " done" : ""}`}>
+                    <div className="cp-free-top">
+                        <span>{isFreeDelivery ? "Free delivery unlocked" : "Free delivery progress"}</span>
+                        <span>{progress}%</span>
                     </div>
-                )}
-
-                <hr />
-
-                {/* Grand Total */}
-                <div className="d-flex justify-content-between mb-4">
-                    <span className="fw-bold fs-5">Total</span>
-                    <span className="fw-bold fs-5 text-success">৳ {grandTotal.toFixed(2)}</span>
+                    <div
+                        className="cp-progress"
+                        role="progressbar"
+                        aria-label="Progress toward free delivery"
+                        aria-valuemin={0}
+                        aria-valuemax={FREE_DELIVERY_THRESHOLD}
+                        aria-valuenow={Math.min(totalAmount, FREE_DELIVERY_THRESHOLD)}
+                        aria-valuetext={`${progress}% toward free delivery`}
+                    >
+                        <span style={{ width: `${progress}%` }}></span>
+                    </div>
+                    <p className="cp-free-hint">
+                        {isFreeDelivery
+                            ? "Delivery on this order is on us."
+                            : `Add ৳ ${currency.format(remainingForFree)} more to get free delivery.`}
+                    </p>
                 </div>
 
-                {/* COD Badge */}
-                <div className="alert alert-light border d-flex align-items-center gap-2 py-2 mb-4">
-                    <i className="bi bi-cash-coin text-success fs-5"></i>
+                <div className="cp-total-row">
+                    <span className="cp-total-label">Total</span>
+                    <span className="cp-total-value">৳ {currency.format(grandTotal)}</span>
+                </div>
+
+                <div className="cp-cod">
+                    <i className="bi bi-cash-coin" aria-hidden="true"></i>
                     <div>
-                        <small className="fw-semibold d-block">Cash on Delivery</small>
-                        <small className="text-muted">Pay when you receive</small>
+                        <strong>Cash on Delivery</strong>
+                        <span>Pay when you receive your order.</span>
                     </div>
                 </div>
 
-                {/* Proceed to Checkout */}
                 <button
-                    className="btn btn-success w-100 py-2 fw-bold mb-2"
+                    type="button"
+                    className="cp-cta"
                     onClick={() => navigate("/checkout")}
-                    disabled={itemCount === 0}
+                    disabled={itemCount === 0 || clearing}
                 >
-                    <i className="bi bi-shield-lock me-2"></i>
+                    <i className="bi bi-shield-lock" aria-hidden="true"></i>
                     Proceed to Checkout
                 </button>
 
-                {/* Continue Shopping */}
-                <button
-                    className="btn btn-outline-secondary w-100 btn-sm mb-3"
-                    onClick={() => navigate("/")}
-                >
-                    <i className="bi bi-arrow-left me-1"></i>
-                    Continue Shopping
+                <button type="button" className="cp-secondary" onClick={() => navigate("/")}>
+                    <i className="bi bi-arrow-left" aria-hidden="true"></i>
+                    Continue shopping
                 </button>
 
-                {/* Clear Cart */}
                 {itemCount > 0 && (
                     <button
-                        className="btn btn-link text-danger btn-sm w-100"
+                        type="button"
+                        className="cp-clear"
                         onClick={onClearCart}
                         disabled={clearing}
                     >
-                        {clearing
-                            ? <><span className="spinner-border spinner-border-sm me-1" />Clearing...</>
-                            : <><i className="bi bi-trash3 me-1"></i>Clear Cart</>
-                        }
+                        {clearing ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                Clearing…
+                            </>
+                        ) : (
+                            <>
+                                <i className="bi bi-trash3" aria-hidden="true"></i>
+                                Clear cart
+                            </>
+                        )}
                     </button>
                 )}
+
+                <div className="cp-perks">
+                    <div className="cp-perk"><i className="bi bi-truck" aria-hidden="true"></i>Fast home delivery</div>
+                    <div className="cp-perk"><i className="bi bi-arrow-repeat" aria-hidden="true"></i>Easy returns</div>
+                    <div className="cp-perk"><i className="bi bi-shield-check" aria-hidden="true"></i>Secure payment</div>
+                </div>
             </div>
         </div>
     );

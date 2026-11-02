@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -8,11 +9,13 @@ using OnlineBookShop.Server.Application.Services;
 using OnlineBookShop.Server.Infrastructure.Data;
 using OnlineBookShop.Server.Infrastructure.Repositories;
 using OnlineBookShop.Server.Infrastructure.Seed;
+using OnlineBookShop.Server.Infrastructure.Storage;
 using OnlineBookShop.Server.Interfaces;
 using OnlineBookShop.Server.Models;
 using OnlineBookShop.Server.Models.DbContext;
 using OnlineBookShop.Server.Services;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,17 +52,64 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
+        // ⭐ FIX: hardcoded fallback key remove kora hoyeche.
+        // Ekhon Jwt:Key config na thakle app startup e clear error diye crash korbe,
+        // silently insecure default key use korbe na.
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "SuperSecretKeyMinimum32CharactersLongHere123456"))
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]
+                ?? throw new InvalidOperationException("Jwt:Key is not configured. Set it via appsettings, User Secrets, or environment variable.")))
     };
 });
 
 // 4. Authorization
 builder.Services.AddAuthorization();
 
+builder.Services.AddMemoryCache();
+
+// 4.1 Rate Limiting — brute-force protection (login/register/refresh/forgot-password)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"error\": \"Onek beshi request pathano hoyeche. Ektu por abar try koro.\"}",
+            cancellationToken: token);
+    };
+
+    // "auth" policy — AuthController er jonno strict limit: IP proti 5 request/minute
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+
+    // Global fallback limiter — baki shob endpoint er jonno halka limit
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 // 5. Repository & UnitOfWork
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// 5.1 File storage (local wwwroot/uploads/books behind an abstraction)
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<IFileStorage, LocalFileStorage>();
 
 // 6. Services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -89,12 +139,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp", policy =>
     {
 
-     //  policy.WithOrigins("http://localhost:5173","http://localhost:5174")
-     policy.WithOrigins("https://sabbirbookworld.vercel.app")
+        // policy.WithOrigins("http://localhost:5173","http://localhost:5174")
+        policy.WithOrigins("https://sabbirbookworld.vercel.app")
 
-         .AllowAnyHeader()
-         .AllowAnyMethod()
-         .AllowCredentials();
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -178,6 +228,8 @@ app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseCors("AllowReactApp");
 
+app.UseRateLimiter();   // ⭐ NEW: CORS er por, Authentication er age
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -203,7 +255,6 @@ app.UseExceptionHandler(errorApp =>
 });
 
 app.Run();
-
 
 //using Microsoft.AspNetCore.Authentication.JwtBearer;
 //using Microsoft.AspNetCore.Identity;
@@ -284,6 +335,7 @@ app.Run();
 //builder.Services.AddScoped<IWishlistService, WishlistService>();
 //builder.Services.AddScoped<INotificationService, NotificationService>();
 //builder.Services.AddScoped<IVendorPayoutService, VendorPayoutService>();
+//builder.Services.AddScoped<IBannerService, BannerService>();
 
 
 //// 7. AutoMapper
@@ -295,11 +347,12 @@ app.Run();
 //    options.AddPolicy("AllowReactApp", policy =>
 //    {
 
-//             policy.WithOrigins("https://sabbirbookworld.vercel.app")
+//     //  policy.WithOrigins("http://localhost:5173","http://localhost:5174")
+//     policy.WithOrigins("https://sabbirbookworld.vercel.app")
 
-//                .AllowAnyHeader()
-//              .AllowAnyMethod()
-//              .AllowCredentials();
+//         .AllowAnyHeader()
+//         .AllowAnyMethod()
+//         .AllowCredentials();
 //    });
 //});
 
@@ -387,6 +440,11 @@ app.Run();
 //app.UseAuthorization();
 
 //app.MapControllers();
+
+//// ── Keep-alive / health check endpoint ──
+
+//app.MapGet("/api/health", () => Results.Ok(new { status = "ok", time = DateTime.UtcNow }))
+//   .AllowAnonymous();
 
 
 //app.MapFallbackToFile("/index.html");

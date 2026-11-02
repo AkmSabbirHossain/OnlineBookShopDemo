@@ -353,6 +353,12 @@ namespace OnlineBookShop.Server.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<decimal>("AverageRating")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
@@ -386,6 +392,11 @@ namespace OnlineBookShop.Server.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsFeatured")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -394,6 +405,11 @@ namespace OnlineBookShop.Server.Migrations
                     b.Property<string>("Language")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("LowStockThreshold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(5);
 
                     b.Property<int?>("PageCount")
                         .HasColumnType("int");
@@ -408,6 +424,11 @@ namespace OnlineBookShop.Server.Migrations
                     b.Property<string>("Publisher")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ReviewCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("Stock")
                         .HasColumnType("int");
@@ -429,11 +450,49 @@ namespace OnlineBookShop.Server.Migrations
 
                     b.HasKey("BookId");
 
+                    b.HasIndex("AverageRating");
+
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("ReviewCount");
 
                     b.HasIndex("VendorId");
 
+                    b.HasIndex("IsDeleted", "IsActive");
+
                     b.ToTable("Books");
+                });
+
+            modelBuilder.Entity("OnlineBookShop.Server.Models.BookImage", b =>
+                {
+                    b.Property<int>("BookImageId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookImageId"));
+
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.HasKey("BookImageId");
+
+                    b.HasIndex("BookId", "DisplayOrder");
+
+                    b.ToTable("BookImages");
                 });
 
             modelBuilder.Entity("OnlineBookShop.Server.Models.BookStock", b =>
@@ -757,6 +816,9 @@ namespace OnlineBookShop.Server.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsVerifiedPurchase")
+                        .HasColumnType("bit");
 
                     b.Property<int>("Rating")
                         .HasColumnType("int");
@@ -1135,6 +1197,17 @@ namespace OnlineBookShop.Server.Migrations
                     b.Navigation("Vendor");
                 });
 
+            modelBuilder.Entity("OnlineBookShop.Server.Models.BookImage", b =>
+                {
+                    b.HasOne("OnlineBookShop.Server.Models.Book", "Book")
+                        .WithMany("Images")
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+                });
+
             modelBuilder.Entity("OnlineBookShop.Server.Models.BookStock", b =>
                 {
                     b.HasOne("OnlineBookShop.Server.Models.Book", "Book")
@@ -1395,6 +1468,8 @@ namespace OnlineBookShop.Server.Migrations
                     b.Navigation("BookStock");
 
                     b.Navigation("CartItems");
+
+                    b.Navigation("Images");
 
                     b.Navigation("OrderItems");
 

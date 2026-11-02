@@ -1,5 +1,5 @@
-﻿// ============================
-// CartItem.tsx 
+// ============================
+// CartItem.tsx
 // ============================
 
 import { useState } from "react";
@@ -12,113 +12,118 @@ interface Props {
   onRemove: (bookId: number) => Promise<void>;
 }
 
-const PLACEHOLDER_IMG = "https://placehold.co/80x100?text=Book";
+const PLACEHOLDER_IMG = "https://placehold.co/200x260/f1f5f9/94a3b8?text=Book";
+const MAX_QUANTITY = 100;
+const currency = new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
   const [updating, setUpdating] = useState(false);
   const [removing, setRemoving] = useState(false);
 
   const handleQtyChange = async (newQty: number) => {
-    if (newQty < 1 || newQty > 100) return;
+    if (newQty < 1 || newQty > MAX_QUANTITY) return;
     setUpdating(true);
-    await onQuantityChange(item.bookId, newQty);
-    setUpdating(false);
+    try {
+      await onQuantityChange(item.bookId, newQty);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleQtyInput = (rawValue: string) => {
+    const parsed = Number.parseInt(rawValue, 10);
+    if (Number.isNaN(parsed)) return;
+    handleQtyChange(Math.min(MAX_QUANTITY, Math.max(1, parsed)));
   };
 
   const handleRemove = async () => {
     setRemoving(true);
-    await onRemove(item.bookId); 
-    setRemoving(false);
+    try {
+      await onRemove(item.bookId);
+    } finally {
+      setRemoving(false);
+    }
   };
 
+  const busy = updating || removing;
+
   return (
-    <div className="card border-0 shadow-sm rounded-3 mb-3">
-      <div className="card-body p-3">
-        <div className="row align-items-center g-3">
+    <article className={`cp-item${busy ? " is-updating" : ""}`} aria-busy={busy}>
+      <div className="cp-thumb">
+        <img
+          src={item.imageUrl || PLACEHOLDER_IMG}
+          alt={item.bookTitle}
+          loading="lazy"
+          onError={(e) => (e.currentTarget.src = PLACEHOLDER_IMG)}
+        />
+      </div>
 
-          {/* Book Image */}
-          <div className="col-auto">
-            <img
-              src={item.imageUrl || PLACEHOLDER_IMG}
-              alt={item.bookTitle}
-              className="rounded-2"
-              style={{ width: "70px", height: "90px", objectFit: "cover" }}
-              onError={(e) => (e.currentTarget.src = PLACEHOLDER_IMG)}
-            />
-          </div>
+      <div className="cp-info">
+        <Link to={`/books/${item.bookId}`} className="cp-item-title">
+          {item.bookTitle}
+        </Link>
+        <div className="cp-unit">
+          Unit price <b>৳ {currency.format(item.bookPrice)}</b>
+        </div>
+        {busy && (
+          <span className="cp-updating" role="status">
+            <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            {removing ? "Removing…" : "Updating…"}
+          </span>
+        )}
+      </div>
 
-          {/* Book Info */}
-          <div className="col">
-            <Link
-              to={`/books/${item.bookId}`}
-              className="fw-bold text-dark text-decoration-none d-block mb-1"
-              style={{ fontSize: "15px" }}
-            >
-              {item.bookTitle}
-            </Link>
-            <span className="text-success fw-semibold">
-              ৳ {item.bookPrice.toFixed(2)} / piece
-            </span>
-          </div>
+      <div className="cp-buy-row">
+        <div className="cp-qty" role="group" aria-label={`Quantity for ${item.bookTitle}`}>
+          <button
+            type="button"
+            className="cp-qty-btn"
+            onClick={() => handleQtyChange(item.quantity - 1)}
+            disabled={busy || item.quantity <= 1}
+            aria-label={`Decrease quantity of ${item.bookTitle}`}
+          >
+            <i className="bi bi-dash" aria-hidden="true"></i>
+          </button>
+          <input
+            type="number"
+            className="cp-qty-input"
+            value={item.quantity}
+            min={1}
+            max={MAX_QUANTITY}
+            onChange={(e) => handleQtyInput(e.target.value)}
+            disabled={busy}
+            aria-label={`Quantity of ${item.bookTitle}`}
+          />
+          <button
+            type="button"
+            className="cp-qty-btn"
+            onClick={() => handleQtyChange(item.quantity + 1)}
+            disabled={busy || item.quantity >= MAX_QUANTITY}
+            aria-label={`Increase quantity of ${item.bookTitle}`}
+          >
+            <i className="bi bi-plus" aria-hidden="true"></i>
+          </button>
+        </div>
 
-          {/* Quantity Control */}
-          <div className="col-auto">
-            <div className="input-group input-group-sm" style={{ width: "120px" }}>
-              <button
-                className="btn btn-outline-secondary"
-                onClick={() => handleQtyChange(item.quantity - 1)}
-                disabled={updating || item.quantity <= 1}
-              >
-                <i className="bi bi-dash"></i>
-              </button>
-              <input
-                type="number"
-                className="form-control text-center"
-                value={item.quantity}
-                min={1}
-                max={100}
-                onChange={(e) => handleQtyChange(parseInt(e.target.value) || 1)}
-                disabled={updating}
-                style={{ fontSize: "14px" }}
-              />
-              <button
-                className="btn btn-outline-secondary"
-                onClick={() => handleQtyChange(item.quantity + 1)}
-                disabled={updating || item.quantity >= 100}
-              >
-                <i className="bi bi-plus"></i>
-              </button>
-            </div>
-          </div>
-
-          {/* Subtotal */}
-          <div className="col-auto text-end" style={{ minWidth: "90px" }}>
-            <div className="fw-bold text-dark">৳ {item.subtotal.toFixed(2)}</div>
-            {updating && (
-              <small className="text-muted">
-                <span className="spinner-border spinner-border-sm me-1" />
-                Updating...
-              </small>
-            )}
-          </div>
-
-          {/* Remove */}
-          <div className="col-auto">
-            <button
-              className="btn btn-outline-danger btn-sm"
-              onClick={handleRemove}
-              disabled={removing}
-              title="Remove from cart"
-            >
-              {removing
-                ? <span className="spinner-border spinner-border-sm" />
-                : <i className="bi bi-trash3"></i>
-              }
-            </button>
-          </div>
-
+        <div className="cp-line-total">
+          ৳ {currency.format(item.subtotal)}
+          <small>{item.quantity} × ৳ {currency.format(item.bookPrice)}</small>
         </div>
       </div>
-    </div>
+
+      <button
+        type="button"
+        className="cp-remove"
+        onClick={handleRemove}
+        disabled={removing || updating}
+        title="Remove from cart"
+        aria-label={`Remove ${item.bookTitle} from cart`}
+      >
+        {removing
+          ? <span className="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          : <i className="bi bi-trash3" aria-hidden="true"></i>
+        }
+      </button>
+    </article>
   );
 }

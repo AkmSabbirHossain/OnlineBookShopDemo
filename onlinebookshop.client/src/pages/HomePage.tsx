@@ -2,7 +2,7 @@
 // HomePage.tsx
 // =============================================
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
@@ -141,35 +141,22 @@ export default function HomePage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [allBooks, setAllBooks] = useState<BookResponseDto[]>([]);
+    const [catalogBooks, setCatalogBooks] = useState<BookResponseDto[]>([]);
+    const [catalogTotal, setCatalogTotal] = useState(0);
+    const [newArrivals, setNewArrivals] = useState<BookResponseDto[]>([]);
+    const [landingBooks, setLandingBooks] = useState<BookResponseDto[]>([]);
+    const [landingTotal, setLandingTotal] = useState(0);
     const [categories, setCategories] = useState<CategoryResponseDto[]>([]);
     const [banners, setBanners] = useState<BannerResponseDto[]>([]);
     const [filters, setFilters] = useState<BookFilterParams>(DEFAULT_FILTERS);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [reloadToken, setReloadToken] = useState(0);
     const [cartMessage, setCartMessage] = useState("");
     const [cartError, setCartError] = useState("");
     const [addingToCart, setAddingToCart] = useState<number | null>(null);
     const [cartQuantities, setCartQuantities] = useState<Record<number, number>>({});
     const [showAllBooks, setShowAllBooks] = useState(false);
-
-    // ── Fetch ──
-    const fetchBooks = async () => {
-        setLoading(true);
-        setError("");
-        try {
-            const data = await BookService.getBooks();
-            setAllBooks(data);
-        } catch (err: unknown) {
-            if (axios.isAxiosError(err)) {
-                setError(err.response?.data?.message || "Failed to load books.");
-            } else {
-                setError("Something went wrong.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const fetchCartQuantities = async () => {
         if (!AuthService.isAuthenticated()) return;
@@ -186,11 +173,84 @@ export default function HomePage() {
     };
 
     useEffect(() => {
-        fetchBooks();
         BookService.getCategories().then(setCategories).catch(() => { });
         BannerService.getActive().then(setBanners).catch(() => { });
         fetchCartQuantities();
     }, []);
+
+    const isBrowsing = !!(
+        filters.search ||
+        filters.categoryId !== undefined ||
+        filters.sortBy ||
+        filters.minPrice !== undefined ||
+        filters.maxPrice !== undefined
+    );
+
+    // ── Server-side catalog loading ──
+    useEffect(() => {
+        if (!isBrowsing && !showAllBooks) {
+            let cancelled = false;
+            setLoading(true);
+            setError("");
+            Promise.all([
+                BookService.searchBooks({ page: 1, pageSize: PAGE_SIZE }),
+                BookService.searchBooks({ page: 1, pageSize: 10, sortBy: "newest" }),
+            ])
+                .then(([latest, newest]) => {
+                    if (cancelled) return;
+                    setLandingBooks(latest.items);
+                    setLandingTotal(latest.totalCount);
+                    setNewArrivals(newest.items);
+                })
+                .catch((err: unknown) => {
+                    if (cancelled) return;
+                    setError(
+                        axios.isAxiosError(err)
+                            ? err.response?.data?.message || "Failed to load books."
+                            : "Something went wrong."
+                    );
+                })
+                .finally(() => {
+                    if (!cancelled) setLoading(false);
+                });
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        let cancelled = false;
+        setLoading(true);
+        setError("");
+        BookService.searchBooks({
+            search: filters.search,
+            categoryId: filters.categoryId,
+            minPrice: filters.minPrice,
+            maxPrice: filters.maxPrice,
+            sortBy: filters.sortBy,
+            page: filters.page ?? 1,
+            pageSize: PAGE_SIZE,
+        })
+            .then((result) => {
+                if (cancelled) return;
+                setCatalogBooks(result.items);
+                setCatalogTotal(result.totalCount);
+            })
+            .catch((err: unknown) => {
+                if (cancelled) return;
+                setError(
+                    axios.isAxiosError(err)
+                        ? err.response?.data?.message || "Failed to load books."
+                        : "Something went wrong."
+                );
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [filters, showAllBooks, reloadToken]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -210,72 +270,9 @@ export default function HomePage() {
         return () => window.removeEventListener("cartUpdated", handleCartUpdate);
     }, []);
 
-    // ── Filtered books ──
-    const filteredBooks = useMemo(() => {
-        let result = [...allBooks];
-        if (filters.search) {
-            const q = filters.search.toLowerCase();
-            result = result.filter(
-                (b) =>
-                    b.title.toLowerCase().includes(q) ||
-                    b.author.toLowerCase().includes(q)
-            );
-        }
-        if (filters.categoryId !== undefined) {
-            result = result.filter((b) => b.categoryId === filters.categoryId);
-        }
-        if (filters.minPrice !== undefined)
-            result = result.filter((b) => b.price >= filters.minPrice!);
-        if (filters.maxPrice !== undefined)
-            result = result.filter((b) => b.price <= filters.maxPrice!);
-        switch (filters.sortBy) {
-            case "price_asc":
-                result.sort((a, b) => a.price - b.price);
-                break;
-            case "price_desc":
-                result.sort((a, b) => b.price - a.price);
-                break;
-            case "newest":
-                result.sort(
-                    (a, b) =>
-                        new Date(b.createdAt).getTime() -
-                        new Date(a.createdAt).getTime()
-                );
-                break;
-            case "title_asc":
-                result.sort((a, b) => a.title.localeCompare(b.title));
-                break;
-        }
-        return result;
-    }, [allBooks, filters]);
-
-    const newArrivals = useMemo(
-        () =>
-            [...allBooks]
-                .sort(
-                    (a, b) =>
-                        new Date(b.createdAt).getTime() -
-                        new Date(a.createdAt).getTime()
-                )
-                .slice(0, 10),
-        [allBooks]
-    );
-
     const currentPage = filters.page ?? 1;
-    const totalCount = filteredBooks.length;
+    const totalCount = catalogTotal;
     const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-    const paginatedBooks = filteredBooks.slice(
-        (currentPage - 1) * PAGE_SIZE,
-        currentPage * PAGE_SIZE
-    );
-
-    const isFiltering = !!(
-        filters.search ||
-        filters.categoryId !== undefined ||
-        filters.sortBy ||
-        filters.minPrice ||
-        filters.maxPrice
-    );
 
     // ── Handlers ──
     const handleCategoryClick = (categoryId: number) => {
@@ -642,7 +639,7 @@ export default function HomePage() {
                             <span>{error}</span>
                             <button
                                 className="btn btn-link btn-sm ms-auto p-0 text-nowrap"
-                                onClick={fetchBooks}
+                                onClick={() => setReloadToken((t) => t + 1)}
                             >
                                 Retry
                             </button>
@@ -650,7 +647,7 @@ export default function HomePage() {
                     )}
 
                     {/* ── FILTERED / SEARCH RESULTS VIEW ── */}
-                    {(isFiltering || showAllBooks) && (
+                    {(isBrowsing || showAllBooks) && (
                         <div>
                             {/* Active filters bar */}
                             <div className="filter-bar mb-3">
@@ -710,6 +707,8 @@ export default function HomePage() {
                                 {[
                                     { value: undefined, label: "Default" },
                                     { value: "newest", label: "Newest" },
+                                    { value: "rating_desc", label: "Top Rated" },
+                                    { value: "popular", label: "Popular" },
                                     { value: "price_asc", label: "Price Low" },
                                     { value: "price_desc", label: "Price High" },
                                     { value: "title_asc", label: "A to Z" },
@@ -734,7 +733,7 @@ export default function HomePage() {
                             {/* Results */}
                             {loading ? (
                                 <SkeletonGrid count={10} />
-                            ) : paginatedBooks.length === 0 ? (
+                            ) : catalogBooks.length === 0 ? (
                                 <div className="text-center py-5">
                                     <div
                                         style={{
@@ -764,7 +763,7 @@ export default function HomePage() {
                                 </div>
                             ) : (
                                 <>
-                                    <BookGrid books={paginatedBooks} />
+                                    <BookGrid books={catalogBooks} />
 
                                     {totalPages > 1 && (
                                         <nav
@@ -842,7 +841,7 @@ export default function HomePage() {
                     )}
 
                     {/* ── LANDING SECTIONS ── */}
-                    {!isFiltering && !showAllBooks && (
+                    {!isBrowsing && !showAllBooks && (
                         <>
                             {/* New Arrivals */}
                             <div className="section-card">
@@ -909,9 +908,7 @@ export default function HomePage() {
                                                         className="badge bg-light text-muted"
                                                         style={{ fontSize: "9px" }}
                                                     >
-                                                        {allBooks.filter(
-                                                            (b) => b.categoryId === cat.categoryId
-                                                        ).length}{" "}
+                                                        {cat.bookCount}{" "}
                                                         books
                                                     </span>
                                                 </button>
@@ -932,14 +929,14 @@ export default function HomePage() {
                                     <SkeletonGrid count={10} />
                                 ) : (
                                     <>
-                                        <BookGrid books={allBooks.slice(0, PAGE_SIZE)} />
-                                        {allBooks.length > PAGE_SIZE && (
+                                        <BookGrid books={landingBooks} />
+                                        {landingTotal > landingBooks.length && (
                                             <div className="text-center mt-4">
                                                 <button
                                                     className="btn btn-outline-primary px-4 px-sm-5 fw-semibold"
                                                     onClick={() => setShowAllBooks(true)}
                                                 >
-                                                    View All {allBooks.length} Books
+                                                    View All {landingTotal} Books
                                                     <i className="bi bi-arrow-right ms-2"></i>
                                                 </button>
                                             </div>

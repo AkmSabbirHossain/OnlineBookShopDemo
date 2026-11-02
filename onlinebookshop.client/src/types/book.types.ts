@@ -1,5 +1,5 @@
 // =============================================
-// book.types.ts — Updated
+// book.types.ts ï¿½ Updated
 // =============================================
 export interface CategoryResponseDto {
     categoryId: number;
@@ -8,6 +8,14 @@ export interface CategoryResponseDto {
     imageUrl?: string;
     displayOrder: number;
     isActive: boolean;
+    bookCount: number;
+}
+
+export interface BookImageDto {
+    bookImageId: number;
+    imageUrl: string;
+    isPrimary: boolean;
+    displayOrder: number;
 }
 
 export interface BookResponseDto {
@@ -32,6 +40,10 @@ export interface BookResponseDto {
     vendorId: number;
     createdAt: string;
     updatedAt?: string;
+    averageRating: number;
+    reviewCount: number;
+    lowStockThreshold: number;
+    images: BookImageDto[];
 }
 
 export interface BookCreateDto {
@@ -50,6 +62,7 @@ export interface BookCreateDto {
     pageCount?: number;
     language?: string;
     isbn?: string;
+    lowStockThreshold?: number;
 }
 
 export interface BookUpdateDto {
@@ -70,6 +83,7 @@ export interface BookUpdateDto {
     isbn?: string;
     isActive?: boolean;
     isFeatured?: boolean;
+    lowStockThreshold?: number;
 }
 
 export interface BookFilterParams {
@@ -77,9 +91,11 @@ export interface BookFilterParams {
     categoryId?: number;
     minPrice?: number;
     maxPrice?: number;
-    sortBy?: "price_asc" | "price_desc" | "newest" | "title_asc" | "title_desc";
+    sortBy?: "price_asc" | "price_desc" | "newest" | "title_asc" | "title_desc"
+        | "rating_desc" | "rating_asc" | "popular";
     page?: number;
     pageSize?: number;
+    inStockOnly?: boolean;
 }
 
 export interface PagedResult<T> {

@@ -13,6 +13,8 @@ interface Props {
     deletingId: number | null;
     searchQuery: string;
     onSearchChange: (q: string) => void;
+    onToggleStatus: (book: BookResponseDto, patch: { isActive?: boolean; isFeatured?: boolean }) => void;
+    statusUpdatingId: number | null;
 }
 
 
@@ -26,6 +28,8 @@ export default function BookTable({
     deletingId,
     searchQuery,
     onSearchChange,
+    onToggleStatus,
+    statusUpdatingId,
 }: Props) {
     const filtered = books.filter(
         (b) =>
@@ -76,6 +80,7 @@ export default function BookTable({
                                     <th>Publication</th>
                                     <th>Edition</th>                                 
                                     <th>Stock</th>
+                                    <th>Status</th>
                                     <th>Added</th>
                                     <th className="text-end">Actions</th>
                                 </tr>
@@ -128,13 +133,45 @@ export default function BookTable({
                                             <span
                                                 className={`badge ${book.stock === 0
                                                         ? "bg-danger"
-                                                        : book.stock <= 5
+                                                        : book.stock <= (book.lowStockThreshold ?? 5)
                                                             ? "bg-warning text-dark"
                                                             : "bg-success"
                                                     }`}
                                             >
                                                 {book.stock === 0 ? "Out of Stock" : `${book.stock} pcs`}
                                             </span>
+                                        </td>
+
+                                        {/* Status */}
+                                        <td>
+                                            <div className="d-flex flex-column align-items-start gap-1">
+                                                <button
+                                                    type="button"
+                                                    className={`badge border-0 ${book.isActive
+                                                            ? "bg-success-subtle text-success-emphasis"
+                                                            : "bg-secondary-subtle text-secondary-emphasis"
+                                                        }`}
+                                                    onClick={() => onToggleStatus(book, { isActive: !book.isActive })}
+                                                    disabled={statusUpdatingId === book.bookId}
+                                                    title={book.isActive ? "Hide from storefront" : "Show in storefront"}
+                                                >
+                                                    <i className={`bi ${book.isActive ? "bi-eye" : "bi-eye-slash"} me-1`}></i>
+                                                    {book.isActive ? "Active" : "Inactive"}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`badge border-0 ${book.isFeatured
+                                                            ? "bg-warning-subtle text-warning-emphasis"
+                                                            : "bg-light text-muted"
+                                                        }`}
+                                                    onClick={() => onToggleStatus(book, { isFeatured: !book.isFeatured })}
+                                                    disabled={statusUpdatingId === book.bookId}
+                                                    title={book.isFeatured ? "Remove from featured" : "Mark as featured"}
+                                                >
+                                                    <i className={`bi ${book.isFeatured ? "bi-star-fill" : "bi-star"} me-1`}></i>
+                                                    {book.isFeatured ? "Featured" : "Regular"}
+                                                </button>
+                                            </div>
                                         </td>
 
                                         {/* Date */}

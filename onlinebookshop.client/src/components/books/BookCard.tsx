@@ -129,6 +129,25 @@ export default function BookCard({
                         </div>
                     )}
 
+                    {/* Rating chip */}
+                    {book.reviewCount > 0 && (
+                        <span
+                            className="badge position-absolute d-inline-flex align-items-center gap-1"
+                            style={{
+                                bottom: "6px",
+                                left: "6px",
+                                background: "rgba(17,24,39,0.82)",
+                                fontSize: "10px",
+                                fontWeight: 600,
+                            }}
+                            title={`${book.averageRating.toFixed(1)} out of 5 · ${book.reviewCount} review${book.reviewCount !== 1 ? "s" : ""}`}
+                        >
+                            <i className="bi bi-star-fill" style={{ fontSize: "10px", color: "#fbbf24" }}></i>
+                            {book.averageRating.toFixed(1)}
+                            <span style={{ opacity: 0.75 }}>({book.reviewCount})</span>
+                        </span>
+                    )}
+
                     {/* In Cart badge */}
                     {cartQuantity > 0 && (
                         <span

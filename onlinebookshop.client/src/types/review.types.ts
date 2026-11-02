@@ -15,5 +15,6 @@ export interface ReviewResponseDto {
     userName: string;
     rating: number;
     comment?: string;
+    isVerifiedPurchase: boolean;
     createdAt: string;
 }

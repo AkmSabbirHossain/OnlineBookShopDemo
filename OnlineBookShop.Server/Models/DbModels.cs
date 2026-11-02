@@ -180,6 +180,14 @@ namespace OnlineBookShop.Server.Models
 
         public bool IsActive { get; set; } = true;
         public bool IsFeatured { get; set; } = false;
+        public bool IsDeleted { get; set; } = false;
+
+        // Denormalized rating aggregates — kept in sync by ReviewService
+        public decimal AverageRating { get; set; } = 0m;
+        public int ReviewCount { get; set; } = 0;
+
+        // Vendor alert threshold for low-stock notifications
+        public int LowStockThreshold { get; set; } = 5;
 
         public string? Publisher { get; set; }
         public string? Edition { get; set; }
@@ -200,7 +208,23 @@ namespace OnlineBookShop.Server.Models
         public ICollection<StockHistory> StockHistories { get; set; } = new List<StockHistory>();
         public ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
         public ICollection<WishlistItem> WishlistItems { get; set; } = new List<WishlistItem>();
+        public ICollection<BookImage> Images { get; set; } = new List<BookImage>();
         public BookStock? BookStock { get; set; }
+    }
+
+    // =====================================
+    // BOOK GALLERY
+    // =====================================
+    public class BookImage
+    {
+        public int BookImageId { get; set; }
+        public int BookId { get; set; }
+        public string ImageUrl { get; set; } = null!;
+        public bool IsPrimary { get; set; }
+        public int DisplayOrder { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public Book Book { get; set; } = null!;
     }
 
     // =====================================
@@ -275,6 +299,7 @@ namespace OnlineBookShop.Server.Models
         public int UserId { get; set; }         
         public int Rating { get; set; }
         public string? Comment { get; set; }
+        public bool IsVerifiedPurchase { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public Book Book { get; set; } = null!;
         public AppUser AppUser { get; set; } = null!;

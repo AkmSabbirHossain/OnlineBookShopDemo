@@ -169,6 +169,7 @@ namespace OnlineBookShop.Server.DTOs
         public string? ImageUrl { get; set; }
         public int DisplayOrder { get; set; }
         public bool IsActive { get; set; }
+        public int BookCount { get; set; }
     }
 
     // =====================================
@@ -193,6 +194,9 @@ namespace OnlineBookShop.Server.DTOs
 
         [Required, Range(0, int.MaxValue)]
         public int Stock { get; set; }
+
+        [Range(0, int.MaxValue)]
+        public int LowStockThreshold { get; set; } = 5;
 
         [MaxLength(2000)]
         public string? Description { get; set; }
@@ -240,6 +244,9 @@ namespace OnlineBookShop.Server.DTOs
         [Range(0, int.MaxValue)]
         public int? Stock { get; set; }
 
+        [Range(0, int.MaxValue)]
+        public int? LowStockThreshold { get; set; }
+
         [MaxLength(2000)]
         public string? Description { get; set; }
 
@@ -268,6 +275,12 @@ namespace OnlineBookShop.Server.DTOs
         public bool? IsFeatured { get; set; }
     }
 
+    public class BookStatusUpdateDto
+    {
+        public bool? IsActive { get; set; }
+        public bool? IsFeatured { get; set; }
+    }
+
     public class BookResponseDto
     {
         public int BookId { get; set; }
@@ -291,6 +304,19 @@ namespace OnlineBookShop.Server.DTOs
         public int VendorId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        public decimal AverageRating { get; set; }
+        public int ReviewCount { get; set; }
+        public int LowStockThreshold { get; set; }
+        public List<BookImageDto> Images { get; set; } = new();
+    }
+
+    public class BookImageDto
+    {
+        public int BookImageId { get; set; }
+        public string ImageUrl { get; set; } = null!;
+        public bool IsPrimary { get; set; }
+        public int DisplayOrder { get; set; }
     }
     // =====================================
     // ORDER
@@ -363,6 +389,7 @@ namespace OnlineBookShop.Server.DTOs
         public string UserName { get; set; } = null!; 
         public int Rating { get; set; }
         public string? Comment { get; set; }
+        public bool IsVerifiedPurchase { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 

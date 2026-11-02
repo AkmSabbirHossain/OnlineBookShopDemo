@@ -32,6 +32,15 @@ namespace OnlineBookShop.Server.Services
 
         public async Task AddItemAsync(int userId, CartItemCreateDto dto)
         {
+            if (dto.Quantity <= 0)
+                throw new InvalidOperationException("Quantity must be greater than zero.");
+
+            var book = await _unitOfWork.Repository<Book>().GetByIdAsync(dto.BookId)
+                ?? throw new KeyNotFoundException("Book not found");
+
+            if (book.IsDeleted || !book.IsActive)
+                throw new InvalidOperationException("This book is no longer available.");
+
             var cart = await GetOrCreateCartAsync(userId);
 
             var existingItem = cart.CartItems.FirstOrDefault(ci => ci.BookId == dto.BookId);
@@ -42,9 +51,6 @@ namespace OnlineBookShop.Server.Services
             }
             else
             {
-                var book = await _unitOfWork.Repository<Book>().GetByIdAsync(dto.BookId)
-                    ?? throw new KeyNotFoundException("Book not found");
-
                 var cartItem = new CartItem
                 {
                     CartId = cart.CartId,
@@ -60,6 +66,9 @@ namespace OnlineBookShop.Server.Services
 
         public async Task UpdateItemAsync(int userId, CartItemUpdateDto dto)
         {
+            if (dto.Quantity <= 0)
+                throw new InvalidOperationException("Quantity must be greater than zero.");
+
             var cart = await GetOrCreateCartAsync(userId);
 
             var item = cart.CartItems.FirstOrDefault(ci => ci.BookId == dto.BookId)

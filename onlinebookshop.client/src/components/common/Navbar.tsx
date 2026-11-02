@@ -2,11 +2,12 @@
 // Navbar.tsx —
 // =============================================
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import AuthService from "../../services/auth.service";
 import CartService from "../../services/cart.service";
 import NotificationBell from "../notifications/NotificationBell";
+import BookSearchBox from "../search/BookSearchBox";
 import brandIcon from "../../assets/brand-icon.svg";
 
 // ── SVG Icons ────────────────────────────────
@@ -15,11 +16,6 @@ import brandIcon from "../../assets/brand-icon.svg";
 //        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
 //    </svg>
 //);
-const SearchIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-);
 const CartIcon = () => (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
@@ -72,11 +68,6 @@ const TruckIcon = () => (
         <rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
     </svg>
 );
-const XIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-);
 
 // ── Category nav items ──────────────────────
 const CATEGORIES = [
@@ -96,16 +87,6 @@ const SEARCH_PLACEHOLDERS = [
     "Search by author name (Sabbir,Ariful Islam...)",
 ];
 
-// ── Custom debounce hook ──────────────────────
-function useDebounce<T>(value: T, delay: number): T {
-    const [debounced, setDebounced] = useState<T>(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delay);
-        return () => clearTimeout(timer);
-    }, [value, delay]);
-    return debounced;
-}
-
 export default function Navbar() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -116,8 +97,6 @@ export default function Navbar() {
     const [cartCount, setCartCount] = useState(0);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-    const debouncedSearch = useDebounce(searchQuery, 300);
 
     // ── Typewriter placeholder ──
     const [placeholderText, setPlaceholderText] = useState("");
@@ -156,18 +135,6 @@ export default function Navbar() {
         const urlSearch = params.get("search") ?? "";
         setSearchQuery(urlSearch);
     }, [location.search]);
-
-    useEffect(() => {
-        const trimmed = debouncedSearch.trim();
-        if (trimmed) {
-            navigate(`/?search=${encodeURIComponent(trimmed)}`, { replace: true });
-        } else {
-            if (location.pathname === "/") {
-                navigate("/", { replace: true });
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearch]);
 
     useEffect(() => {
         const t = setTimeout(() => { setMobileMenuOpen(false); setDropdownOpen(false); }, 0);
@@ -219,16 +186,26 @@ export default function Navbar() {
         navigate("/auth");
     };
 
-    const handleClearSearch = useCallback(() => {
-        setSearchQuery("");
-    }, []);
-
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        const trimmed = searchQuery.trim();
-        if (trimmed) {
-            navigate(`/?search=${encodeURIComponent(trimmed)}`, { replace: true });
+    const handleSearch = (term: string) => {
+        const trimmed = term.trim();
+        setMobileMenuOpen(false);
+        if (!trimmed) {
+            if (location.pathname !== "/" || location.search) navigate("/", { replace: true });
+            return;
         }
+        navigate(`/?search=${encodeURIComponent(trimmed)}`, { replace: true });
+    };
+
+    const handleQueryChange = (next: string) => {
+        setSearchQuery(next);
+        if (!next.trim() && location.pathname === "/" && location.search) {
+            navigate("/", { replace: true });
+        }
+    };
+
+    const handleSelectSuggestion = (bookId: number) => {
+        setMobileMenuOpen(false);
+        navigate(`/books/${bookId}`);
     };
 
     const roleBadge = (role: string) => {
@@ -239,8 +216,6 @@ export default function Navbar() {
         };
         return map[role] ?? { bg: "#f1f5f9", color: "#475569" };
     };
-
-    const showClearBtn = searchQuery.length > 0;
 
     return (
         <>
@@ -257,10 +232,18 @@ export default function Navbar() {
                     --border:      #e8edf3;
                     --surface:     #ffffff;
                     --topbar-bg:   #1b2a4a;
+                    --nb-header-h: 107px;
                 }
 
                 .nb-root * { box-sizing: border-box; margin: 0; padding: 0; }
-                .nb-root { font-family: 'Sora', 'Hind Siliguri', sans-serif; }
+                .nb-root {
+                    font-family: 'Sora', 'Hind Siliguri', sans-serif;
+                    position: sticky;
+                    top: 0;
+                    z-index: 1000;
+                }
+                .nb-topbar, .nb-topbar * { box-sizing: border-box; margin: 0; padding: 0; }
+                .nb-topbar { font-family: 'Sora', 'Hind Siliguri', sans-serif; }
 
                 /* ── Top bar ── */
                 .nb-topbar {
@@ -297,9 +280,6 @@ export default function Navbar() {
                     background: #fff;
                     border-bottom: 1px solid var(--border);
                     box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-                    position: sticky;
-                    top: 0;
-                    z-index: 1000;
                 }
                 .nb-main-inner {
                     max-width: 1200px;
@@ -378,15 +358,80 @@ export default function Navbar() {
                 }
                 .nb-search-btn:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
 
-                .nb-typing-dot {
-                    width: 6px; height: 6px; border-radius: 50%;
-                    background: rgba(255,255,255,0.7);
-                    animation: nbPulse 0.8s ease-in-out infinite alternate;
+                /* ── Search suggestions ── */
+                .bsb-panel {
+                    position: absolute; top: calc(100% + 10px); left: 0; right: 0;
+                    background: #fff; border: 1px solid var(--border); border-radius: 14px;
+                    box-shadow: 0 24px 60px -20px rgba(15,23,42,0.35), 0 8px 20px -12px rgba(15,23,42,0.2);
+                    z-index: 30; overflow: hidden; animation: bsbIn 0.16s ease;
                 }
-                @keyframes nbPulse {
-                    from { opacity: 0.4; transform: scale(0.8); }
-                    to   { opacity: 1;   transform: scale(1.2); }
+                @keyframes bsbIn {
+                    from { opacity: 0; transform: translateY(-6px); }
+                    to   { opacity: 1; transform: translateY(0); }
                 }
+                .bsb-head {
+                    padding: 10px 16px 6px; font-size: 10px; font-weight: 700;
+                    letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
+                }
+                .bsb-list {
+                    list-style: none; margin: 0; padding: 0 6px 6px;
+                    max-height: min(380px, calc(100vh - var(--nb-header-h) - 40px));
+                    overflow-y: auto;
+                }
+                .bsb-item {
+                    display: flex; align-items: center; gap: 12px;
+                    padding: 8px 10px; border-radius: 10px; cursor: pointer;
+                }
+                .bsb-item.is-active { background: #f8fafc; }
+                .bsb-thumb {
+                    width: 40px; height: 54px; object-fit: cover; border-radius: 6px;
+                    background: #f1f5f9; flex-shrink: 0; border: 1px solid var(--border);
+                }
+                .bsb-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+                .bsb-title {
+                    font-size: 13px; font-weight: 700; color: var(--navy);
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                }
+                .bsb-meta {
+                    display: flex; align-items: center; gap: 4px;
+                    font-size: 11.5px; color: var(--muted);
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                }
+                .bsb-meta .bi-star-fill { color: #f59e0b; font-size: 10px; }
+                .bsb-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+                .bsb-price { font-size: 13px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+                .bsb-old { font-size: 10.5px; color: #a0aec0; text-decoration: line-through; }
+                .bsb-out {
+                    font-size: 9.5px; font-weight: 700; color: #b91c1c;
+                    text-transform: uppercase; letter-spacing: 0.04em;
+                }
+                .bsb-mark { background: #fff1d6; color: inherit; padding: 0 1px; border-radius: 2px; }
+                .bsb-viewall {
+                    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+                    width: 100%; padding: 11px 16px; background: #f8fafc;
+                    border: none; border-top: 1px solid var(--border);
+                    color: var(--brand); font-family: inherit; font-size: 12.5px; font-weight: 700;
+                    cursor: pointer; text-align: left;
+                }
+                .bsb-viewall:hover { background: var(--brand-light); }
+                .bsb-state {
+                    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+                    padding: 18px 16px; font-size: 12.5px; color: var(--muted);
+                }
+                .bsb-state i { color: #94a3b8; }
+                .bsb-error { color: #b91c1c; }
+                .bsb-inline-action {
+                    background: none; border: none; padding: 0; cursor: pointer;
+                    color: var(--brand); font-family: inherit; font-size: 12.5px; font-weight: 700;
+                }
+                .bsb-inline-action:hover { text-decoration: underline; }
+                .bsb-spinner {
+                    width: 14px; height: 14px; border-radius: 50%;
+                    border: 2px solid #e2e8f0; border-top-color: var(--brand);
+                    animation: bsbSpin 0.7s linear infinite; display: inline-block; flex-shrink: 0;
+                }
+                .bsb-spinner.floating { position: absolute; right: 12px; top: 50%; margin-top: -7px; }
+                @keyframes bsbSpin { to { transform: rotate(360deg); } }
 
                 /* ── Action icons ── */
                 .nb-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
@@ -625,6 +670,7 @@ export default function Navbar() {
 
                 /* ── Responsive ── */
                 @media (max-width: 900px) {
+                    :root { --nb-header-h: 130px; }
                     .nb-search { display: none; }
                     .nb-mobile-search { display: block; }
                     .nb-cat { display: none; }
@@ -634,6 +680,7 @@ export default function Navbar() {
                     .nb-topbar-left { display: none; }
                 }
                 @media (max-width: 600px) {
+                    :root { --nb-header-h: 116px; }
                     .nb-user-name { display: none; }
                     .nb-main-inner { padding: 0 12px; gap: 8px; height: 58px; }
                     .nb-brand-tagline { display: none; }
@@ -643,30 +690,42 @@ export default function Navbar() {
                     .nb-wishlist-icon { display: none; }
                     .nb-topbar { display: none; }
                 }
+                @media (max-width: 480px) {
+                    .nb-main-inner { gap: 6px; padding: 0 10px; }
+                    .nb-icon-btn { width: 40px; height: 40px; }
+                    .nb-signin-btn { width: 40px; height: 40px; padding: 0; justify-content: center; }
+                    .nb-signin-text { display: none; }
+                }
                 @media (max-width: 380px) {
                     .nb-brand-name { font-size: 14px; }
+                    .nb-brand-icon { width: 30px; height: 30px; }
                     .nb-icon-btn { width: 38px; height: 38px; }
-                    .nb-main-inner { gap: 4px; padding: 0 10px; }
+                    .nb-signin-btn { width: 38px; height: 38px; }
+                    .nb-main-inner { gap: 4px; padding: 0 8px; }
+                }
+                @media (max-width: 340px) {
+                    .nb-brand-text { display: none; }
                 }
             `}</style>
 
-            <div className="nb-root">
-                {/* ── Top bar ── */}
-                <div className="nb-topbar">
-                    <div className="nb-topbar-inner">
-                        <div className="nb-topbar-left">
-                            <span className="nb-topbar-item"><TruckIcon /> Free delivery on orders over ৳500</span>
-                            <div className="nb-topbar-divider" />
-                            <span className="nb-topbar-item"><PhoneIcon /> 16297 (10am – 8pm)</span>
-                        </div>
-                        <div className="nb-topbar-right">
-                            <Link to="/vendor/register" className="nb-topbar-item">Become a Vendor</Link>
-                            <div className="nb-topbar-divider" />
-                            <Link to="/orders" className="nb-topbar-item">Track Order</Link>
-                        </div>
+            {/* ── Top bar (scrolls away) ── */}
+            <div className="nb-topbar">
+                <div className="nb-topbar-inner">
+                    <div className="nb-topbar-left">
+                        <span className="nb-topbar-item"><TruckIcon /> Free delivery on orders over ৳500</span>
+                        <div className="nb-topbar-divider" />
+                        <span className="nb-topbar-item"><PhoneIcon /> 16297 (10am – 8pm)</span>
+                    </div>
+                    <div className="nb-topbar-right">
+                        <Link to="/vendor/register" className="nb-topbar-item">Become a Vendor</Link>
+                        <div className="nb-topbar-divider" />
+                        <Link to="/orders" className="nb-topbar-item">Track Order</Link>
                     </div>
                 </div>
+            </div>
 
+            {/* ── Sticky header ── */}
+            <div className="nb-root">
                 {/* ── Main bar ── */}
                 <div className="nb-main">
                     <div className="nb-main-inner">
@@ -689,39 +748,15 @@ export default function Navbar() {
                         </Link>
 
                         {/* ── Desktop Search ── */}
-                        <div className="nb-search">
-                            <form className="nb-search-form" onSubmit={handleSearch}>
-                                <div className="nb-search-input-wrap">
-                                    <input
-                                        type="text"
-                                        className={`nb-search-input${showClearBtn ? " has-value" : ""}`}
-                                        placeholder={placeholderText || "Search book, author..."}
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        autoComplete="off"
-                                    />
-                                    {showClearBtn && (
-                                        <button
-                                            type="button"
-                                            className="nb-search-clear"
-                                            onClick={handleClearSearch}
-                                            tabIndex={-1}
-                                            aria-label="Clear search"
-                                        >
-                                            <XIcon />
-                                        </button>
-                                    )}
-                                </div>
-                                <button className="nb-search-btn" type="submit">
-                                    {searchQuery !== debouncedSearch ? (
-                                        <span className="nb-typing-dot" />
-                                    ) : (
-                                        <SearchIcon />
-                                    )}
-                                    <span>Search</span>
-                                </button>
-                            </form>
-                        </div>
+                        <BookSearchBox
+                            idPrefix="nb-desktop-search"
+                            variant="desktop"
+                            value={searchQuery}
+                            placeholder={placeholderText || "Search books, authors, ISBN…"}
+                            onChange={handleQueryChange}
+                            onSearch={handleSearch}
+                            onSelectBook={handleSelectSuggestion}
+                        />
 
                         {/* Actions */}
                         <div className="nb-actions">
@@ -786,7 +821,7 @@ export default function Navbar() {
                                     )}
                                 </div>
                             ) : (
-                                <Link className="nb-signin-btn" to="/auth"><UserIcon />Sign In</Link>
+                                <Link className="nb-signin-btn" to="/auth" aria-label="Sign In"><UserIcon /><span className="nb-signin-text">Sign In</span></Link>
                             )}
 
                             <button
@@ -802,34 +837,15 @@ export default function Navbar() {
                     </div>
 
                     {/* ── Mobile Search ── */}
-                    <div className="nb-mobile-search">
-                        <form className="nb-mobile-search-form" onSubmit={handleSearch}>
-                            <div className="nb-mobile-search-input-wrap">
-                                <input
-                                    type="text"
-                                    className={`nb-mobile-search-input${showClearBtn ? " has-value" : ""}`}
-                                    placeholder={placeholderText || "Search book, author..."}
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    autoComplete="off"
-                                />
-                                {showClearBtn && (
-                                    <button
-                                        type="button"
-                                        className="nb-mobile-search-clear"
-                                        onClick={handleClearSearch}
-                                        tabIndex={-1}
-                                        aria-label="Clear search"
-                                    >
-                                        <XIcon />
-                                    </button>
-                                )}
-                            </div>
-                            <button className="nb-mobile-search-btn" type="submit">
-                                {searchQuery !== debouncedSearch ? <span className="nb-typing-dot" /> : <SearchIcon />}
-                            </button>
-                        </form>
-                    </div>
+                    <BookSearchBox
+                        idPrefix="nb-mobile-search"
+                        variant="mobile"
+                        value={searchQuery}
+                        placeholder={placeholderText || "Search books, authors…"}
+                        onChange={handleQueryChange}
+                        onSearch={handleSearch}
+                        onSelectBook={handleSelectSuggestion}
+                    />
 
                     {/* ── Mobile drawer ── */}
                     {/* ── Mobile drawer ── */}

@@ -1,13 +1,14 @@
 ﻿// =============================================
 // BookFormModal.tsx — 
 // =============================================
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
     BookResponseDto,
     BookCreateDto,
     BookUpdateDto,
     CategoryResponseDto,
 } from "../../types/book.types";
+import BookImageManager from "./BookImageManager";
 
 interface Props {
     show: boolean;
@@ -16,10 +17,12 @@ interface Props {
     onClose: () => void;
     onSubmit: (dto: BookCreateDto | BookUpdateDto) => Promise<void>;
     saving: boolean;
+    onBookUpdated?: (book: BookResponseDto) => void;
 }
 
 interface FormState {
     title: string;
+    subtitle: string;
     author: string;
     price: string;
     stock: string;
@@ -32,6 +35,10 @@ interface FormState {
     language: string;
     isbn: string;
     pageCount: string;
+    publishedYear: string;
+    lowStockThreshold: string;
+    isActive: boolean;
+    isFeatured: boolean;
 }
 
 interface FormErrors {
@@ -40,12 +47,14 @@ interface FormErrors {
     price?: string;
     stock?: string;
     categoryId?: string;
+    lowStockThreshold?: string;
 }
 
 function buildInitialForm(editBook: BookResponseDto | null): FormState {
     if (editBook) {
         return {
             title: editBook.title,
+            subtitle: editBook.subtitle ?? "",
             author: editBook.author,
             price: editBook.price.toString(),
             stock: editBook.stock.toString(),
@@ -58,10 +67,15 @@ function buildInitialForm(editBook: BookResponseDto | null): FormState {
             language: editBook.language ?? "",
             isbn: editBook.isbn ?? "",
             pageCount: editBook.pageCount?.toString() ?? "",
+            publishedYear: editBook.publishedYear?.toString() ?? "",
+            lowStockThreshold: (editBook.lowStockThreshold ?? 5).toString(),
+            isActive: editBook.isActive,
+            isFeatured: editBook.isFeatured,
         };
     }
     return {
         title: "",
+        subtitle: "",
         author: "",
         price: "",
         stock: "",
@@ -73,7 +87,11 @@ function buildInitialForm(editBook: BookResponseDto | null): FormState {
         edition: "",
         language: "",
         isbn: "",
-        pageCount: ""
+        pageCount: "",
+        publishedYear: "",
+        lowStockThreshold: "5",
+        isActive: true,
+        isFeatured: false
     };
 }
 
@@ -83,15 +101,27 @@ function BookFormInner({
     onClose,
     onSubmit,
     saving,
+    onBookUpdated,
 }: Omit<Props, "show">) {
     const isEditMode = editBook !== null;
     const [form, setForm] = useState<FormState>(() => buildInitialForm(editBook));
     const [errors, setErrors] = useState<FormErrors>({});
     const [modalError, setModalError] = useState("");
 
+    // Keep the cover URL in sync when the gallery changes the primary image.
+    useEffect(() => {
+        if (!editBook) return;
+        setForm((prev) => ({ ...prev, imageUrl: editBook.imageUrl ?? "" }));
+    }, [editBook?.imageUrl]);
+
     const handleChange = (field: keyof FormState, value: string) => {
         setForm((prev) => ({ ...prev, [field]: value }));
         setErrors((prev) => ({ ...prev, [field]: undefined }));
+        setModalError("");
+    };
+
+    const setFlag = (field: "isActive" | "isFeatured", value: boolean) => {
+        setForm((prev) => ({ ...prev, [field]: value }));
         setModalError("");
     };
 
@@ -104,6 +134,9 @@ function BookFormInner({
         if (!form.price || isNaN(price) || price <= 0) errs.price = "Give valid price ";
         const stock = parseInt(form.stock);
         if (form.stock === "" || isNaN(stock) || stock < 0) errs.stock = "Give valid stock ";
+        const threshold = parseInt(form.lowStockThreshold);
+        if (form.lowStockThreshold === "" || isNaN(threshold) || threshold < 0)
+            errs.lowStockThreshold = "Enter 0 or a positive number";
         if (!form.categoryId) errs.categoryId = "Select category ";
 
         setErrors(errs);
@@ -118,6 +151,7 @@ function BookFormInner({
 
         const dto = {
             title: form.title.trim(),
+            subtitle: form.subtitle.trim() || undefined,
             author: form.author.trim(),
             price: parseFloat(form.price),
             stock: parseInt(form.stock),
@@ -130,6 +164,9 @@ function BookFormInner({
             language: form.language.trim() || undefined,
             isbn: form.isbn.trim() || undefined,
             pageCount: form.pageCount ? parseInt(form.pageCount) : undefined,
+            publishedYear: form.publishedYear ? parseInt(form.publishedYear) : undefined,
+            lowStockThreshold: parseInt(form.lowStockThreshold),
+            ...(isEditMode ? { isActive: form.isActive, isFeatured: form.isFeatured } : {}),
         };
 
         try {
@@ -180,6 +217,19 @@ function BookFormInner({
                             {errors.title && <div className="invalid-feedback">{errors.title}</div>}
                         </div>
 
+                        {/* Subtitle */}
+                        <div className="col-md-6">
+                            <label className="form-label fw-semibold small">Subtitle</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Optional subtitle"
+                                value={form.subtitle}
+                                onChange={(e) => handleChange("subtitle", e.target.value)}
+                                maxLength={300}
+                            />
+                        </div>
+
                         {/* Author */}
                         <div className="col-md-6">
                             <label className="form-label fw-semibold small">
@@ -194,6 +244,20 @@ function BookFormInner({
                                 maxLength={150}
                             />
                             {errors.author && <div className="invalid-feedback">{errors.author}</div>}
+                        </div>
+
+                        {/* Published Year */}
+                        <div className="col-md-6">
+                            <label className="form-label fw-semibold small">Published Year</label>
+                            <input
+                                type="number"
+                                className="form-control"
+                                placeholder="e.g. 2024"
+                                min={1000}
+                                max={new Date().getFullYear()}
+                                value={form.publishedYear}
+                                onChange={(e) => handleChange("publishedYear", e.target.value)}
+                            />
                         </div>
 
                         {/* Price */}
@@ -247,6 +311,27 @@ function BookFormInner({
                                 onChange={(e) => handleChange("stock", e.target.value)}
                             />
                             {errors.stock && <div className="invalid-feedback">{errors.stock}</div>}
+                        </div>
+
+                        {/* Low stock alert threshold */}
+                        <div className="col-md-4">
+                            <label className="form-label fw-semibold small" htmlFor="lowStockThreshold">
+                                Low Stock Alert At
+                            </label>
+                            <input
+                                id="lowStockThreshold"
+                                type="number"
+                                className={`form-control ${errors.lowStockThreshold ? "is-invalid" : ""}`}
+                                placeholder="5"
+                                min={0}
+                                value={form.lowStockThreshold}
+                                onChange={(e) => handleChange("lowStockThreshold", e.target.value)}
+                            />
+                            {errors.lowStockThreshold ? (
+                                <div className="invalid-feedback">{errors.lowStockThreshold}</div>
+                            ) : (
+                                <small className="text-muted">Notify me when stock reaches this number.</small>
+                            )}
                         </div>
 
                         {/* Publisher */}
@@ -335,6 +420,38 @@ function BookFormInner({
                             />
                         </div>
 
+                        {/* Visibility flags (edit only) */}
+                        {isEditMode && (
+                            <div className="col-12">
+                                <div className="d-flex flex-wrap gap-4 border rounded-3 p-3 bg-light">
+                                    <div className="form-check form-switch mb-0">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="bookIsActive"
+                                            checked={form.isActive}
+                                            onChange={(e) => setFlag("isActive", e.target.checked)}
+                                        />
+                                        <label className="form-check-label small fw-semibold" htmlFor="bookIsActive">
+                                            Visible in store
+                                        </label>
+                                    </div>
+                                    <div className="form-check form-switch mb-0">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="bookIsFeatured"
+                                            checked={form.isFeatured}
+                                            onChange={(e) => setFlag("isFeatured", e.target.checked)}
+                                        />
+                                        <label className="form-check-label small fw-semibold" htmlFor="bookIsFeatured">
+                                            Featured book
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Image URL */}
                         <div className="col-12">
                             <label className="form-label fw-semibold small">Cover Image URL</label>
@@ -354,7 +471,20 @@ function BookFormInner({
                                     onError={(e) => (e.currentTarget.style.display = "none")}
                                 />
                             )}
+                            <small className="text-muted">
+                                {isEditMode
+                                    ? "Used only when the gallery has no images."
+                                    : "You can upload gallery images after saving the book."}
+                            </small>
                         </div>
+
+                        {/* Gallery (edit mode only — needs a persisted book) */}
+                        {isEditMode && editBook && onBookUpdated && (
+                            <div className="col-12">
+                                <hr className="my-2" />
+                                <BookImageManager book={editBook} onBookUpdated={onBookUpdated} />
+                            </div>
+                        )}
 
                         {/* Description */}
                         <div className="col-12">
@@ -420,6 +550,7 @@ export default function BookFormModal(props: Props) {
                     onClose={props.onClose}
                     onSubmit={props.onSubmit}
                     saving={props.saving}
+                    onBookUpdated={props.onBookUpdated}
                 />
             </div>
         </>

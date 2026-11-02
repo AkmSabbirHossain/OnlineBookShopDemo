@@ -129,6 +129,15 @@ function ReviewCard({
                                     year: "numeric",
                                 })}
                             </small>
+                            {review.isVerifiedPurchase && (
+                                <span
+                                    className="badge bg-success-subtle text-success-emphasis ms-2"
+                                    style={{ fontSize: "10px" }}
+                                    title="Reviewer bought and received this book"
+                                >
+                                    <i className="bi bi-patch-check-fill me-1"></i>Verified Purchase
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -174,6 +183,7 @@ export default function ReviewSection({
     const [comment, setComment] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState("");
+    const [deleteError, setDeleteError] = useState("");
     const [deleting, setDeleting] = useState<number | null>(null);
 
     const handleSubmit = async () => {
@@ -206,11 +216,16 @@ export default function ReviewSection({
     const handleDelete = async (reviewId: number) => {
         if (!window.confirm("Delete this review?")) return;
         setDeleting(reviewId);
+        setDeleteError("");
         try {
             await ReviewService.delete(reviewId);
             onReviewDeleted(reviewId);
-        } catch {
-            // ignore
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                setDeleteError(err.response?.data?.message || "Failed to delete review.");
+            } else {
+                setDeleteError("Something went wrong.");
+            }
         } finally {
             setDeleting(null);
         }
@@ -298,6 +313,12 @@ export default function ReviewSection({
                         <a href="/auth" className="text-decoration-none fw-semibold">Sign in</a>
                         {" "}to write a review.
                     </span>
+                </div>
+            )}
+
+            {deleteError && (
+                <div className="alert alert-danger py-2 small mb-3" role="alert">
+                    {deleteError}
                 </div>
             )}
 

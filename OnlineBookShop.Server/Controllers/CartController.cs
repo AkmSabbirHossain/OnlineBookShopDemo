@@ -31,16 +31,38 @@ namespace OnlineBookShop.Server.Controllers
         public async Task<IActionResult> AddToCart([FromBody] CartItemCreateDto dto)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
-            await _cartService.AddItemAsync(userId, dto);
-            return Ok(new { Message = "Item added to cart" });
+            try
+            {
+                await _cartService.AddItemAsync(userId, dto);
+                return Ok(new { Message = "Item added to cart" });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPut("update")]
         public async Task<IActionResult> UpdateCartItem([FromBody] CartItemUpdateDto dto)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
-            await _cartService.UpdateItemAsync(userId, dto);
-            return Ok(new { Message = "Cart updated" });
+            try
+            {
+                await _cartService.UpdateItemAsync(userId, dto);
+                return Ok(new { Message = "Cart updated" });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpDelete("remove/{bookId}")]

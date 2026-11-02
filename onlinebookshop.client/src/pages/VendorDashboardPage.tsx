@@ -41,6 +41,7 @@ export default function VendorDashboardPage() {
     const [editBook, setEditBook] = useState<BookResponseDto | null>(null);
     const [saving, setSaving] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: "success" | "danger" } | null>(null);
 
     // ── Stock History book filter ──
@@ -244,6 +245,8 @@ export default function VendorDashboardPage() {
                                                 deletingId={deletingId}
                                                 searchQuery={searchQuery}
                                                 onSearchChange={setSearchQuery}
+                                                onToggleStatus={handleToggleStatus}
+                                                statusUpdatingId={statusUpdatingId}
                                             />
                                         </div>
                                     </>
@@ -344,6 +347,10 @@ export default function VendorDashboardPage() {
                 onClose={() => { setShowModal(false); setEditBook(null); }}
                 onSubmit={handleSubmit}
                 saving={saving}
+                onBookUpdated={(updated) => {
+                    setBooks((prev) => prev.map((b) => (b.bookId === updated.bookId ? updated : b)));
+                    setEditBook(updated);
+                }}
             />
 
             {/* Toast */}
@@ -368,9 +375,11 @@ export default function VendorDashboardPage() {
         setSaving(true);
         try {
             if (editBook) {
-                await VendorService.updateBook(editBook.bookId, dto as BookUpdateDto);
+                const updated = await VendorService.updateBook(editBook.bookId, dto as BookUpdateDto);
+                setBooks((prev) => prev.map((b) => (b.bookId === updated.bookId ? updated : b)));
                 showToast("Book updated successfully!");
-                setTimeout(() => window.location.reload(), 500);
+                setShowModal(false);
+                setEditBook(null);
             } else {
                 const created = await VendorService.createBook(dto as BookCreateDto);
                 setBooks((prev) => [created, ...prev]);
@@ -398,6 +407,31 @@ export default function VendorDashboardPage() {
             showToast("Failed to delete book.", "danger");
         } finally {
             setDeletingId(null);
+        }
+    }
+
+    async function handleToggleStatus(
+        book: BookResponseDto,
+        patch: { isActive?: boolean; isFeatured?: boolean }
+    ) {
+        setStatusUpdatingId(book.bookId);
+        try {
+            const updated = await VendorService.setBookStatus(book.bookId, patch);
+            setBooks((prev) => prev.map((b) => (b.bookId === updated.bookId ? updated : b)));
+            showToast(
+                patch.isFeatured !== undefined
+                    ? updated.isFeatured
+                        ? "Book marked as featured."
+                        : "Book removed from featured."
+                    : updated.isActive
+                        ? "Book is now visible in the store."
+                        : "Book hidden from the store."
+            );
+        } catch (err: unknown) {
+            console.error(err);
+            showToast("Failed to update book status.", "danger");
+        } finally {
+            setStatusUpdatingId(null);
         }
     }
 

@@ -29,8 +29,19 @@ namespace OnlineBookShop.Server.Controllers
             if (userId == null)
                 return Unauthorized();
 
-            var order = await _orderService.CreateOrderAsync(dto, userId.Value);
-            return CreatedAtAction(nameof(GetOrder), new { orderId = order.OrderId }, order);
+            try
+            {
+                var order = await _orderService.CreateOrderAsync(dto, userId.Value);
+                return CreatedAtAction(nameof(GetOrder), new { orderId = order.OrderId }, order);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // Customer: Get my orders
@@ -91,8 +102,19 @@ namespace OnlineBookShop.Server.Controllers
             if (userId == null)
                 return Unauthorized();
 
-            await _orderService.CancelOrderAsync(orderId, userId.Value);
-            return Ok(new { Message = "Order cancelled successfully" });
+            try
+            {
+                await _orderService.CancelOrderAsync(orderId, userId.Value);
+                return Ok(new { Message = "Order cancelled successfully" });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // ── Vendor: Get my orders 

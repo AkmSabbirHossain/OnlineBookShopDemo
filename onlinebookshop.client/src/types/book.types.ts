@@ -30,6 +30,8 @@ export interface BookResponseDto {
     imageUrl?: string;
     isActive: boolean;
     isFeatured: boolean;
+    authorId?: number;
+    publisherId?: number;
     publisher?: string;
     edition?: string;
     publishedYear?: number;
@@ -89,6 +91,8 @@ export interface BookUpdateDto {
 export interface BookFilterParams {
     search?: string;
     categoryId?: number;
+    authorId?: number;
+    publisherId?: number;
     minPrice?: number;
     maxPrice?: number;
     sortBy?: "price_asc" | "price_desc" | "newest" | "title_asc" | "title_desc"

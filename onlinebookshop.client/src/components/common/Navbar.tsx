@@ -78,6 +78,8 @@ const CATEGORIES = [
     { label: "Fiction", to: "/?category=fiction" },
     { label: "Non-Fiction", to: "/?category=nonfiction" },
     { label: "Stationery", to: "/?category=stationery" },
+    { label: "Writers", to: "/authors" },
+    { label: "Publishers", to: "/publishers" },
     { label: "New Arrivals", to: "/?sort=new" },
 ];
 
@@ -179,6 +181,12 @@ export default function Navbar() {
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
     }, []);
+
+    const isNavActive = (to: string) => {
+        const query = to.split("?")[1];
+        if (!query) return location.pathname === to || location.pathname.startsWith(`${to}/`);
+        return location.pathname === "/" && location.search.includes(query);
+    };
 
     const handleLogout = () => {
         setDropdownOpen(false);
@@ -927,7 +935,7 @@ export default function Navbar() {
                                 {CATEGORIES.map((cat) => (
                                     <Link
                                         key={cat.to}
-                                        className={`nb-mobile-cat-chip${cat.label === "New Arrivals" ? " highlight" : ""}${location.search.includes(cat.to.split("?")[1] ?? "~~") ? " active" : ""}`}
+                                        className={`nb-mobile-cat-chip${cat.label === "New Arrivals" ? " highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
                                         to={cat.to}
                                     >
                                         {cat.label}
@@ -943,7 +951,7 @@ export default function Navbar() {
                             {CATEGORIES.map((cat) => (
                                 <Link
                                     key={cat.to}
-                                    className={`nb-cat-link${cat.label === "New Arrivals" ? " nb-cat-highlight" : ""}${location.search.includes(cat.to.split("?")[1] ?? "~~") ? " active" : ""}`}
+                                    className={`nb-cat-link${cat.label === "New Arrivals" ? " nb-cat-highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
                                     to={cat.to}
                                 >
                                     {cat.label}

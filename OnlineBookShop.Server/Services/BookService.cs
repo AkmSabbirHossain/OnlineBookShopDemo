@@ -298,6 +298,17 @@ namespace OnlineBookShop.Server.Services
             book.CreatedAt = DateTime.UtcNow;
             book.IsActive = true;
 
+            var author = await ResolveAuthorAsync(dto.Author);
+            book.Author = author.Name;
+            book.AuthorProfile = author;
+
+            var publisher = await ResolvePublisherAsync(dto.Publisher);
+            if (publisher != null)
+            {
+                book.Publisher = publisher.Name;
+                book.PublisherProfile = publisher;
+            }
+
             _unitOfWork.Repository<Book>().Add(book);
             await _unitOfWork.SaveChangesAsync();
 
@@ -331,6 +342,29 @@ namespace OnlineBookShop.Server.Services
 
             _mapper.Map(dto, book);
             book.UpdatedAt = DateTime.UtcNow;
+
+            if (dto.Author != null)
+            {
+                var author = await ResolveAuthorAsync(dto.Author);
+                book.Author = author.Name;
+                book.AuthorProfile = author;
+            }
+
+            if (dto.Publisher != null)
+            {
+                var publisher = await ResolvePublisherAsync(dto.Publisher);
+                if (publisher == null)
+                {
+                    book.Publisher = null;
+                    book.PublisherProfile = null;
+                    book.PublisherId = null;
+                }
+                else
+                {
+                    book.Publisher = publisher.Name;
+                    book.PublisherProfile = publisher;
+                }
+            }
 
             _unitOfWork.Repository<Book>().Update(book);
             await _unitOfWork.SaveChangesAsync();
@@ -399,6 +433,55 @@ namespace OnlineBookShop.Server.Services
             _cache.Remove(CacheKeys.AllBooks);
             _cache.Remove(CacheKeys.BookById(bookId));
             _cache.Remove(CacheKeys.AllCategories);
+            _cache.Remove(CacheKeys.AllAuthors);
+            _cache.Remove(CacheKeys.AllPublishers);
+        }
+
+        // ── Book writes resolve/create the profile rows so vendors never have to ──
+        private async Task<Author> ResolveAuthorAsync(string? authorName)
+        {
+            var name = authorName?.Trim();
+            if (string.IsNullOrEmpty(name))
+                throw new InvalidOperationException("Author name is required.");
+
+            var author = await _unitOfWork.Repository<Author>().GetQueryable()
+                .FirstOrDefaultAsync(a => a.Name == name);
+
+            if (author == null)
+            {
+                author = new Author
+                {
+                    Name = name,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _unitOfWork.Repository<Author>().Add(author);
+            }
+
+            return author;
+        }
+
+        private async Task<Publisher?> ResolvePublisherAsync(string? publisherName)
+        {
+            var name = publisherName?.Trim();
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            var publisher = await _unitOfWork.Repository<Publisher>().GetQueryable()
+                .FirstOrDefaultAsync(p => p.Name == name);
+
+            if (publisher == null)
+            {
+                publisher = new Publisher
+                {
+                    Name = name,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _unitOfWork.Repository<Publisher>().Add(publisher);
+            }
+
+            return publisher;
         }
 
         private IQueryable<Book> VisibleBooks() =>
@@ -591,6 +674,8 @@ namespace OnlineBookShop.Server.Services
         public async Task<PagedResult<BookResponseDto>> GetFilteredBooksAsync(
             string? search,
             int? categoryId,
+            int? authorId,
+            int? publisherId,
             decimal? minPrice,
             decimal? maxPrice,
             string? sortBy,
@@ -621,6 +706,12 @@ namespace OnlineBookShop.Server.Services
 
             if (categoryId.HasValue)
                 query = query.Where(b => b.CategoryId == categoryId.Value);
+
+            if (authorId.HasValue)
+                query = query.Where(b => b.AuthorId == authorId.Value);
+
+            if (publisherId.HasValue)
+                query = query.Where(b => b.PublisherId == publisherId.Value);
 
             if (minPrice.HasValue)
                 query = query.Where(b =>

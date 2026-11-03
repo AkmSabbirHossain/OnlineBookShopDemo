@@ -172,10 +172,10 @@ export default function BookDetailPage() {
     const discountPercentage = hasDiscount
         ? Math.round(((book!.price - book!.discountPrice!) / book!.price) * 100) : 0;
 
-    const summaryRows = book ? [
-        { label: "Author", value: book.author, icon: "bi-person" },
+    const summaryRows: { label: string; value?: string | null; icon: string; to?: string }[] = book ? [
+        { label: "Author", value: book.author, icon: "bi-person", to: book.authorId ? `/authors/${book.authorId}` : undefined },
         { label: "Category", value: categoryName, icon: "bi-tag" },
-        { label: "Publisher", value: book.publisher, icon: "bi-building" },
+        { label: "Publisher", value: book.publisher, icon: "bi-building", to: book.publisherId ? `/publishers/${book.publisherId}` : undefined },
         { label: "Edition", value: book.edition, icon: "bi-journal-bookmark" },
         { label: "Published", value: book.publishedYear ? String(book.publishedYear) : null, icon: "bi-calendar3" },
         { label: "Language", value: book.language, icon: "bi-translate" },
@@ -307,6 +307,10 @@ export default function BookDetailPage() {
                     .bd-subtitle { font-size: 15px; line-height: 1.5; color: var(--bd-muted); margin: 0 0 10px; }
                     .bd-byline { font-size: 14px; color: var(--bd-muted); margin-bottom: 14px; }
                     .bd-byline strong { color: var(--bd-ink); font-weight: 700; }
+                    .bd-byline a { color: inherit; text-decoration: none; }
+                    .bd-byline a:hover strong { color: var(--bd-brand); text-decoration: underline; }
+                    .bd-spec-link { color: var(--bd-brand); text-decoration: none; }
+                    .bd-spec-link:hover { text-decoration: underline; }
                     .bd-rating-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
                     .bd-stars { display: flex; gap: 2px; font-size: 14px; }
                     .bd-stars .bi-star-fill { color: #f59e0b; }
@@ -625,7 +629,14 @@ export default function BookDetailPage() {
                                     <h1 className="bd-title">{book.title}</h1>
                                     {book.subtitle && <p className="bd-subtitle">{book.subtitle}</p>}
                                     <div className="bd-byline">
-                                        by <strong>{book.author}</strong>
+                                        by{" "}
+                                        {book.authorId ? (
+                                            <Link to={`/authors/${book.authorId}`}>
+                                                <strong>{book.author}</strong>
+                                            </Link>
+                                        ) : (
+                                            <strong>{book.author}</strong>
+                                        )}
                                     </div>
 
                                     <div className="bd-rating-row">
@@ -798,7 +809,11 @@ export default function BookDetailPage() {
                                                     {summaryRows.map((row) => (
                                                         <div className="bd-spec" key={row.label}>
                                                             <dt><i className={`bi ${row.icon}`} aria-hidden="true"></i>{row.label}</dt>
-                                                            <dd>{row.value}</dd>
+                                                            <dd>
+                                                                {row.to ? (
+                                                                    <Link to={row.to} className="bd-spec-link">{row.value}</Link>
+                                                                ) : row.value}
+                                                            </dd>
                                                         </div>
                                                     ))}
                                                 </dl>

@@ -29,6 +29,8 @@ namespace OnlineBookShop.Server.Models.DbContext
         public DbSet<VendorEarning> VendorEarnings { get; set; } = null!;
         public DbSet<Banner> Banners { get; set; } = null!;
         public DbSet<BookImage> BookImages { get; set; } = null!;
+        public DbSet<Author> Authors { get; set; } = null!;
+        public DbSet<Publisher> Publishers { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -195,6 +197,71 @@ namespace OnlineBookShop.Server.Models.DbContext
                       .WithMany(c => c.Books)
                       .HasForeignKey(b => b.CategoryId)
                       .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.AuthorProfile)
+                      .WithMany(a => a.Books)
+                      .HasForeignKey(b => b.AuthorId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(b => b.PublisherProfile)
+                      .WithMany(p => p.Books)
+                      .HasForeignKey(b => b.PublisherId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(b => b.AuthorId);
+                entity.HasIndex(b => b.PublisherId);
+            });
+
+            // ============================
+            // AUTHOR
+            // ============================
+            modelBuilder.Entity<Author>(entity =>
+            {
+                entity.HasKey(a => a.AuthorId);
+
+                entity.Property(a => a.Name)
+                      .HasMaxLength(150)
+                      .IsRequired();
+
+                entity.Property(a => a.Bio)
+                      .HasMaxLength(2000);
+
+                entity.Property(a => a.ImageUrl)
+                      .HasMaxLength(500);
+
+                entity.Property(a => a.IsActive)
+                      .HasDefaultValue(true);
+
+                entity.Property(a => a.CreatedAt)
+                      .HasDefaultValueSql("GETUTCDATE()");
+
+                entity.HasIndex(a => a.Name).IsUnique();
+            });
+
+            // ============================
+            // PUBLISHER
+            // ============================
+            modelBuilder.Entity<Publisher>(entity =>
+            {
+                entity.HasKey(p => p.PublisherId);
+
+                entity.Property(p => p.Name)
+                      .HasMaxLength(100)
+                      .IsRequired();
+
+                entity.Property(p => p.Bio)
+                      .HasMaxLength(2000);
+
+                entity.Property(p => p.ImageUrl)
+                      .HasMaxLength(500);
+
+                entity.Property(p => p.IsActive)
+                      .HasDefaultValue(true);
+
+                entity.Property(p => p.CreatedAt)
+                      .HasDefaultValueSql("GETUTCDATE()");
+
+                entity.HasIndex(p => p.Name).IsUnique();
             });
             // Orders table configuration
             modelBuilder.Entity<Order>(entity =>

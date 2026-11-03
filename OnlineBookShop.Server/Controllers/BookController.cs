@@ -30,6 +30,8 @@ namespace OnlineBookShop.Server.Controllers
         public async Task<IActionResult> SearchBooks(
             [FromQuery] string? search,
             [FromQuery] int? categoryId,
+            [FromQuery] int? authorId,
+            [FromQuery] int? publisherId,
             [FromQuery] decimal? minPrice,
             [FromQuery] decimal? maxPrice,
             [FromQuery] string? sortBy,
@@ -38,7 +40,7 @@ namespace OnlineBookShop.Server.Controllers
             [FromQuery] bool inStockOnly = false)
         {
             var result = await _bookService.GetFilteredBooksAsync(
-                search, categoryId, minPrice, maxPrice, sortBy, page, pageSize, inStockOnly);
+                search, categoryId, authorId, publisherId, minPrice, maxPrice, sortBy, page, pageSize, inStockOnly);
             return Ok(result);
         }
 

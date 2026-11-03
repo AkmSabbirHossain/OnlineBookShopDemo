@@ -28,6 +28,8 @@ namespace OnlineBookShop.Server.Interfaces
         Task<PagedResult<BookResponseDto>> GetFilteredBooksAsync(
             string? search,
             int? categoryId,
+            int? authorId,
+            int? publisherId,
             decimal? minPrice,
             decimal? maxPrice,
             string? sortBy,

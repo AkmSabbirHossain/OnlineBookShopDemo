@@ -296,6 +296,48 @@ namespace OnlineBookShop.Server.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("OnlineBookShop.Server.Models.Author", b =>
+                {
+                    b.Property<int>("AuthorId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuthorId"));
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("AuthorId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Authors");
+                });
+
             modelBuilder.Entity("OnlineBookShop.Server.Models.Banner", b =>
                 {
                     b.Property<int>("BannerId")
@@ -352,6 +394,9 @@ namespace OnlineBookShop.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorId")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("AverageRating")
                         .ValueGeneratedOnAdd()
@@ -425,6 +470,9 @@ namespace OnlineBookShop.Server.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int?>("PublisherId")
+                        .HasColumnType("int");
+
                     b.Property<int>("ReviewCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -450,9 +498,13 @@ namespace OnlineBookShop.Server.Migrations
 
                     b.HasKey("BookId");
 
+                    b.HasIndex("AuthorId");
+
                     b.HasIndex("AverageRating");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("PublisherId");
 
                     b.HasIndex("ReviewCount");
 
@@ -769,6 +821,48 @@ namespace OnlineBookShop.Server.Migrations
                         .IsUnique();
 
                     b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("OnlineBookShop.Server.Models.Publisher", b =>
+                {
+                    b.Property<int>("PublisherId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PublisherId"));
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("PublisherId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Publishers");
                 });
 
             modelBuilder.Entity("OnlineBookShop.Server.Models.RefreshToken", b =>
@@ -1180,11 +1274,21 @@ namespace OnlineBookShop.Server.Migrations
 
             modelBuilder.Entity("OnlineBookShop.Server.Models.Book", b =>
                 {
+                    b.HasOne("OnlineBookShop.Server.Models.Author", "AuthorProfile")
+                        .WithMany("Books")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("OnlineBookShop.Server.Models.Category", "Category")
                         .WithMany("Books")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("OnlineBookShop.Server.Models.Publisher", "PublisherProfile")
+                        .WithMany("Books")
+                        .HasForeignKey("PublisherId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("OnlineBookShop.Server.Models.Vendor", "Vendor")
                         .WithMany("Books")
@@ -1192,7 +1296,11 @@ namespace OnlineBookShop.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("AuthorProfile");
+
                     b.Navigation("Category");
+
+                    b.Navigation("PublisherProfile");
 
                     b.Navigation("Vendor");
                 });
@@ -1463,6 +1571,11 @@ namespace OnlineBookShop.Server.Migrations
                     b.Navigation("Wishlists");
                 });
 
+            modelBuilder.Entity("OnlineBookShop.Server.Models.Author", b =>
+                {
+                    b.Navigation("Books");
+                });
+
             modelBuilder.Entity("OnlineBookShop.Server.Models.Book", b =>
                 {
                     b.Navigation("BookStock");
@@ -1497,6 +1610,11 @@ namespace OnlineBookShop.Server.Migrations
                     b.Navigation("Payment");
 
                     b.Navigation("StatusHistories");
+                });
+
+            modelBuilder.Entity("OnlineBookShop.Server.Models.Publisher", b =>
+                {
+                    b.Navigation("Books");
                 });
 
             modelBuilder.Entity("OnlineBookShop.Server.Models.Vendor", b =>

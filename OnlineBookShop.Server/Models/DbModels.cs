@@ -161,6 +161,58 @@ namespace OnlineBookShop.Server.Models
     }
 
     // =====================================
+    // AUTHOR
+    // =====================================
+    public class Author
+    {
+        public int AuthorId { get; set; }
+
+        [Required]
+        [MaxLength(150)]
+        public string Name { get; set; } = null!;
+
+        [MaxLength(2000)]
+        public string? Bio { get; set; }
+
+        [Url]
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedAt { get; set; }
+
+        public ICollection<Book> Books { get; set; } = new List<Book>();
+    }
+
+    // =====================================
+    // PUBLISHER
+    // =====================================
+    public class Publisher
+    {
+        public int PublisherId { get; set; }
+
+        [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = null!;
+
+        [MaxLength(2000)]
+        public string? Bio { get; set; }
+
+        [Url]
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedAt { get; set; }
+
+        public ICollection<Book> Books { get; set; } = new List<Book>();
+    }
+
+    // =====================================
     // BOOK
     // =====================================
     public class Book
@@ -171,7 +223,10 @@ namespace OnlineBookShop.Server.Models
 
         public string Title { get; set; } = null!;
         public string? Subtitle { get; set; }
+
+        // Kept for backwards compatibility; AuthorId links to the profile table.
         public string Author { get; set; } = null!;
+        public int? AuthorId { get; set; }
         public decimal Price { get; set; }
         public decimal? DiscountPrice { get; set; }
         public int Stock { get; set; }
@@ -189,7 +244,9 @@ namespace OnlineBookShop.Server.Models
         // Vendor alert threshold for low-stock notifications
         public int LowStockThreshold { get; set; } = 5;
 
+        // Kept for backwards compatibility; PublisherId links to the profile table.
         public string? Publisher { get; set; }
+        public int? PublisherId { get; set; }
         public string? Edition { get; set; }
         public int? PublishedYear { get; set; }
         public int? PageCount { get; set; }
@@ -202,6 +259,8 @@ namespace OnlineBookShop.Server.Models
         // Navigation Properties
         public Vendor Vendor { get; set; } = null!;
         public Category Category { get; set; } = null!;
+        public Author? AuthorProfile { get; set; }
+        public Publisher? PublisherProfile { get; set; }
 
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
         public ICollection<Review> Reviews { get; set; } = new List<Review>();

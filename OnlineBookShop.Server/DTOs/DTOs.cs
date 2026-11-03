@@ -173,6 +173,62 @@ namespace OnlineBookShop.Server.DTOs
     }
 
     // =====================================
+    // AUTHOR & PUBLISHER
+    // =====================================
+    public class AuthorUpsertDto
+    {
+        [Required, MaxLength(150)]
+        public string Name { get; set; } = null!;
+
+        [MaxLength(2000)]
+        public string? Bio { get; set; }
+
+        [Url, MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class PublisherUpsertDto
+    {
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = null!;
+
+        [MaxLength(2000)]
+        public string? Bio { get; set; }
+
+        [Url, MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class CreatorStatusUpdateDto
+    {
+        public bool IsActive { get; set; }
+    }
+
+    public class AuthorResponseDto
+    {
+        public int AuthorId { get; set; }
+        public string Name { get; set; } = null!;
+        public string? Bio { get; set; }
+        public string? ImageUrl { get; set; }
+        public bool IsActive { get; set; }
+        public int BookCount { get; set; }
+    }
+
+    public class PublisherResponseDto
+    {
+        public int PublisherId { get; set; }
+        public string Name { get; set; } = null!;
+        public string? Bio { get; set; }
+        public string? ImageUrl { get; set; }
+        public bool IsActive { get; set; }
+        public int BookCount { get; set; }
+    }
+
+    // =====================================
     // BOOK
     // =====================================
     public class BookCreateDto
@@ -294,6 +350,8 @@ namespace OnlineBookShop.Server.DTOs
         public string? ImageUrl { get; set; }
         public bool IsActive { get; set; }
         public bool IsFeatured { get; set; }
+        public int? AuthorId { get; set; }
+        public int? PublisherId { get; set; }
         public string? Publisher { get; set; }
         public string? Edition { get; set; }
         public int? PublishedYear { get; set; }

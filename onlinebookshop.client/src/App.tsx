@@ -21,6 +21,8 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import VendorRegisterPage from "./pages/VendorRegisterPage";
 import BookDetailPage from "./pages/BookDetailPage";
+import CreatorsPage from "./pages/CreatorsPage";
+import CreatorProfilePage from "./pages/CreatorProfilePage";
 import ProfilePage from "./pages/ProfilePage";
 import WishlistPage from "./pages/WishlistPage";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -152,6 +154,10 @@ export default function App() {
                         />
 
                         <Route path="/books/:id" element={<BookDetailPage />} />
+                        <Route path="/authors" element={<CreatorsPage kind="author" />} />
+                        <Route path="/authors/:id" element={<CreatorProfilePage kind="author" />} />
+                        <Route path="/publishers" element={<CreatorsPage kind="publisher" />} />
+                        <Route path="/publishers/:id" element={<CreatorProfilePage kind="publisher" />} />
 
                         {/* ── Vendor Routes ── */}
                         <Route

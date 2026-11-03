@@ -9,18 +9,54 @@ import VendorApprovalTable from "../components/admin/VendorApprovalTable";
 import ActiveVendorTable from "../components/admin/ActiveVendorTable";
 import CategoryManager from "../components/admin/CategoryManager";
 import BannerManager from "../components/admin/BannerManager";
+import CreatorManager, { type CreatorItem } from "../components/admin/CreatorManager";
 
 import AdminService from "../services/admin.service";
 import BookService from "../services/book.service";
 import BannerService from "../services/banner.service";
+import CreatorService from "../services/creator.service";
 import VendorPayoutAdminPage from "./VendorPayoutAdminPage";
 
 import type { VendorResponseDto, CategoryResponseDto } from "../types/admin.types";
 import type { BookResponseDto } from "../types/book.types";
 import type { BannerResponseDto, BannerCreateDto } from "../types/banner.types";
+import type {
+    AuthorResponseDto,
+    PublisherResponseDto,
+    CreatorUpsertDto,
+} from "../types/creator.types";
 import BroadcastNotificationForm from "../components/notifications/BroadcastNotificationForm";
 
-type Tab = "pending" | "allVendors" | "categories" | "banners" | "broadcast" | "payouts";
+type Tab =
+    | "pending"
+    | "allVendors"
+    | "categories"
+    | "authors"
+    | "publishers"
+    | "banners"
+    | "broadcast"
+    | "payouts";
+
+const toAuthorItem = (author: AuthorResponseDto): CreatorItem => ({
+    id: author.authorId,
+    name: author.name,
+    bio: author.bio,
+    imageUrl: author.imageUrl,
+    isActive: author.isActive,
+    bookCount: author.bookCount,
+});
+
+const toPublisherItem = (publisher: PublisherResponseDto): CreatorItem => ({
+    id: publisher.publisherId,
+    name: publisher.name,
+    bio: publisher.bio,
+    imageUrl: publisher.imageUrl,
+    isActive: publisher.isActive,
+    bookCount: publisher.bookCount,
+});
+
+const sortCreators = (items: CreatorItem[]) =>
+    [...items].sort((a, b) => a.name.localeCompare(b.name));
 
 export default function AdminDashboardPage() {
     const [activeTab, setActiveTab] = useState<Tab>("pending");
@@ -31,6 +67,8 @@ export default function AdminDashboardPage() {
     const [categories, setCategories] = useState<CategoryResponseDto[]>([]);
     const [allBooks, setAllBooks] = useState<BookResponseDto[]>([]);
     const [banners, setBanners] = useState<BannerResponseDto[]>([]);
+    const [authors, setAuthors] = useState<CreatorItem[]>([]);
+    const [publishers, setPublishers] = useState<CreatorItem[]>([]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -40,6 +78,10 @@ export default function AdminDashboardPage() {
     const [addingCategory, setAddingCategory] = useState(false);
     const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
     const [addingBanner, setAddingBanner] = useState(false);
+    const [savingAuthor, setSavingAuthor] = useState(false);
+    const [savingPublisher, setSavingPublisher] = useState(false);
+    const [processingAuthorId, setProcessingAuthorId] = useState<number | null>(null);
+    const [processingPublisherId, setProcessingPublisherId] = useState<number | null>(null);
 
     const [toast, setToast] = useState<{ msg: string; type: "success" | "danger" } | null>(null);
 
@@ -48,18 +90,31 @@ export default function AdminDashboardPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
+    const creatorErrorMessage = (err: unknown, fallback: string) =>
+        axios.isAxiosError(err) ? err.response?.data?.message || fallback : "Something went wrong.";
+
     // Fetch Data
     useEffect(() => {
         const fetchAll = async () => {
             setLoading(true);
             setError("");
             try {
-                const [pendingData, allVendorsData, catsData, booksData, bannersData] = await Promise.all([
+                const [
+                    pendingData,
+                    allVendorsData,
+                    catsData,
+                    booksData,
+                    bannersData,
+                    authorsData,
+                    publishersData,
+                ] = await Promise.all([
                     AdminService.getPendingVendors(),
                     AdminService.getAllVendors(),
                     AdminService.getCategories(),
                     BookService.getBooks(),
                     BannerService.getAll(),
+                    CreatorService.getAuthorsForAdmin(),
+                    CreatorService.getPublishersForAdmin(),
                 ]);
 
                 setPendingVendors(pendingData);
@@ -67,6 +122,8 @@ export default function AdminDashboardPage() {
                 setCategories(catsData);
                 setAllBooks(booksData);
                 setBanners(bannersData);
+                setAuthors(sortCreators(authorsData.map(toAuthorItem)));
+                setPublishers(sortCreators(publishersData.map(toPublisherItem)));
             } catch (err: unknown) {
                 if (axios.isAxiosError(err)) {
                     setError(err.response?.data?.message || "There is a problem loading data");
@@ -290,6 +347,100 @@ export default function AdminDashboardPage() {
         }
     };
 
+    // ==================== Writer Handlers ====================
+
+    const handleAddAuthor = async (dto: CreatorUpsertDto) => {
+        setSavingAuthor(true);
+        try {
+            const created = await CreatorService.createAuthor(dto);
+            setAuthors((prev) => sortCreators([...prev, toAuthorItem(created)]));
+            showToast(`Writer "${created.name}" added! ✍️`);
+        } catch (err: unknown) {
+            showToast(creatorErrorMessage(err, "There was a problem adding the writer."), "danger");
+            throw err;
+        } finally {
+            setSavingAuthor(false);
+        }
+    };
+
+    const handleUpdateAuthor = async (authorId: number, dto: CreatorUpsertDto) => {
+        setSavingAuthor(true);
+        try {
+            const updated = await CreatorService.updateAuthor(authorId, dto);
+            setAuthors((prev) =>
+                sortCreators(prev.map((a) => (a.id === authorId ? toAuthorItem(updated) : a)))
+            );
+            showToast(`Writer "${updated.name}" updated ✅`);
+        } catch (err: unknown) {
+            showToast(creatorErrorMessage(err, "There was a problem updating the writer."), "danger");
+            throw err;
+        } finally {
+            setSavingAuthor(false);
+        }
+    };
+
+    const handleToggleAuthorStatus = async (authorId: number, isActive: boolean) => {
+        setProcessingAuthorId(authorId);
+        try {
+            const updated = await CreatorService.setAuthorStatus(authorId, isActive);
+            setAuthors((prev) =>
+                prev.map((a) => (a.id === authorId ? toAuthorItem(updated) : a))
+            );
+            showToast(updated.isActive ? "Writer is now visible ✅" : "Writer hidden 🚫");
+        } catch (err: unknown) {
+            showToast(creatorErrorMessage(err, "Failed to update the writer."), "danger");
+        } finally {
+            setProcessingAuthorId(null);
+        }
+    };
+
+    // ==================== Publisher Handlers ====================
+
+    const handleAddPublisher = async (dto: CreatorUpsertDto) => {
+        setSavingPublisher(true);
+        try {
+            const created = await CreatorService.createPublisher(dto);
+            setPublishers((prev) => sortCreators([...prev, toPublisherItem(created)]));
+            showToast(`Publisher "${created.name}" added! 🏢`);
+        } catch (err: unknown) {
+            showToast(creatorErrorMessage(err, "There was a problem adding the publisher."), "danger");
+            throw err;
+        } finally {
+            setSavingPublisher(false);
+        }
+    };
+
+    const handleUpdatePublisher = async (publisherId: number, dto: CreatorUpsertDto) => {
+        setSavingPublisher(true);
+        try {
+            const updated = await CreatorService.updatePublisher(publisherId, dto);
+            setPublishers((prev) =>
+                sortCreators(prev.map((p) => (p.id === publisherId ? toPublisherItem(updated) : p)))
+            );
+            showToast(`Publisher "${updated.name}" updated ✅`);
+        } catch (err: unknown) {
+            showToast(creatorErrorMessage(err, "There was a problem updating the publisher."), "danger");
+            throw err;
+        } finally {
+            setSavingPublisher(false);
+        }
+    };
+
+    const handleTogglePublisherStatus = async (publisherId: number, isActive: boolean) => {
+        setProcessingPublisherId(publisherId);
+        try {
+            const updated = await CreatorService.setPublisherStatus(publisherId, isActive);
+            setPublishers((prev) =>
+                prev.map((p) => (p.id === publisherId ? toPublisherItem(updated) : p))
+            );
+            showToast(updated.isActive ? "Publisher is now visible ✅" : "Publisher hidden 🚫");
+        } catch (err: unknown) {
+            showToast(creatorErrorMessage(err, "Failed to update the publisher."), "danger");
+        } finally {
+            setProcessingPublisherId(null);
+        }
+    };
+
     return (
         <>
             <Navbar />
@@ -331,6 +482,20 @@ export default function AdminDashboardPage() {
                                     <button className={`nav-link ${activeTab === "categories" ? "active" : ""}`}
                                         onClick={() => setActiveTab("categories")}>
                                         Categories ({categories.length})
+                                    </button>
+                                </li>
+                                <li className="nav-item">
+                                    <button className={`nav-link ${activeTab === "authors" ? "active" : ""}`}
+                                        onClick={() => setActiveTab("authors")}>
+                                        <i className="bi bi-person-lines-fill me-1" />
+                                        Writers ({authors.length})
+                                    </button>
+                                </li>
+                                <li className="nav-item">
+                                    <button className={`nav-link ${activeTab === "publishers" ? "active" : ""}`}
+                                        onClick={() => setActiveTab("publishers")}>
+                                        <i className="bi bi-building me-1" />
+                                        Publishers ({publishers.length})
                                     </button>
                                 </li>
                                 <li className="nav-item">
@@ -386,6 +551,30 @@ export default function AdminDashboardPage() {
                                     onDelete={handleDeleteCategory}
                                     deletingId={deletingCategoryId}
                                     adding={addingCategory}
+                                />
+                            )}
+
+                            {activeTab === "authors" && (
+                                <CreatorManager
+                                    kind="author"
+                                    creators={authors}
+                                    onAdd={handleAddAuthor}
+                                    onUpdate={handleUpdateAuthor}
+                                    onToggleStatus={handleToggleAuthorStatus}
+                                    saving={savingAuthor}
+                                    processingId={processingAuthorId}
+                                />
+                            )}
+
+                            {activeTab === "publishers" && (
+                                <CreatorManager
+                                    kind="publisher"
+                                    creators={publishers}
+                                    onAdd={handleAddPublisher}
+                                    onUpdate={handleUpdatePublisher}
+                                    onToggleStatus={handleTogglePublisherStatus}
+                                    saving={savingPublisher}
+                                    processingId={processingPublisherId}
                                 />
                             )}
 

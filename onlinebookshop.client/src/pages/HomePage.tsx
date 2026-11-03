@@ -7,10 +7,12 @@ import { useNavigate, Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
 import BookCard from "../components/books/BookCard";
+import CreatorCard from "../components/creators/CreatorCard";
 import BookService from "../services/book.service";
 import CartService from "../services/cart.service";
 import AuthService from "../services/auth.service";
 import BannerService from "../services/banner.service";
+import CreatorService from "../services/creator.service";
 
 import type {
     BookResponseDto,
@@ -18,6 +20,7 @@ import type {
     BookFilterParams,
 } from "../types/book.types";
 import type { BannerResponseDto } from "../types/banner.types";
+import type { AuthorResponseDto, PublisherResponseDto } from "../types/creator.types";
 
 const PAGE_SIZE = 20;
 
@@ -148,6 +151,8 @@ export default function HomePage() {
     const [landingTotal, setLandingTotal] = useState(0);
     const [categories, setCategories] = useState<CategoryResponseDto[]>([]);
     const [banners, setBanners] = useState<BannerResponseDto[]>([]);
+    const [authors, setAuthors] = useState<AuthorResponseDto[]>([]);
+    const [publishers, setPublishers] = useState<PublisherResponseDto[]>([]);
     const [filters, setFilters] = useState<BookFilterParams>(DEFAULT_FILTERS);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -175,6 +180,8 @@ export default function HomePage() {
     useEffect(() => {
         BookService.getCategories().then(setCategories).catch(() => { });
         BannerService.getActive().then(setBanners).catch(() => { });
+        CreatorService.getAuthors({ page: 1, pageSize: 12 }).then((res) => setAuthors(res.items)).catch(() => { });
+        CreatorService.getPublishers({ page: 1, pageSize: 12 }).then((res) => setPublishers(res.items)).catch(() => { });
         fetchCartQuantities();
     }, []);
 
@@ -863,6 +870,31 @@ export default function HomePage() {
                                 )}
                             </div>
 
+                            {/* Writers */}
+                            {authors.length > 0 && (
+                                <div className="section-card">
+                                    <SectionHeader
+                                        title="Popular Writers"
+                                        icon="bi-feather"
+                                        onSeeAll={() => navigate("/authors")}
+                                    />
+                                    <div className="cr-strip">
+                                        {authors.map((author) => (
+                                            <CreatorCard
+                                                key={author.authorId}
+                                                kind="author"
+                                                id={author.authorId}
+                                                name={author.name}
+                                                imageUrl={author.imageUrl}
+                                                bio={author.bio}
+                                                bookCount={author.bookCount}
+                                                variant="strip"
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Browse by Category */}
                             {categories.length > 0 && (
                                 <div className="section-card">
@@ -913,6 +945,31 @@ export default function HomePage() {
                                                     </span>
                                                 </button>
                                             </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Publishers */}
+                            {publishers.length > 0 && (
+                                <div className="section-card">
+                                    <SectionHeader
+                                        title="Publishers"
+                                        icon="bi-building"
+                                        onSeeAll={() => navigate("/publishers")}
+                                    />
+                                    <div className="cr-strip">
+                                        {publishers.map((publisher) => (
+                                            <CreatorCard
+                                                key={publisher.publisherId}
+                                                kind="publisher"
+                                                id={publisher.publisherId}
+                                                name={publisher.name}
+                                                imageUrl={publisher.imageUrl}
+                                                bio={publisher.bio}
+                                                bookCount={publisher.bookCount}
+                                                variant="strip"
+                                            />
                                         ))}
                                     </div>
                                 </div>

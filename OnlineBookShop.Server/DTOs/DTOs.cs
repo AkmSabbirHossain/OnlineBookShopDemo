@@ -351,6 +351,7 @@ namespace OnlineBookShop.Server.DTOs
         public DateTime OrderDate { get; set; }
         public List<OrderItemResponseDto> Items { get; set; } = new();
         public AddressResponseDto? Address { get; set; }
+        public List<OrderStatusHistoryResponseDto> StatusHistory { get; set; } = new();
     }
 
     public class OrderItemResponseDto
@@ -360,6 +361,7 @@ namespace OnlineBookShop.Server.DTOs
         public int Quantity { get; set; }
         public decimal Price { get; set; }
         public string Title { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
     }
     public class OrderStatusUpdateDto
     {

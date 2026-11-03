@@ -53,10 +53,14 @@ namespace OnlineBookShop.Server.Application.Mappings
 
             CreateMap<Order, OrderResponseDto>()
                 .ForMember(dest => dest.Items, opt => opt.MapFrom(src => src.OrderItems))
-                 .ForMember(dest => dest.Address, opt => opt.MapFrom(src => src.Address));
+                 .ForMember(dest => dest.Address, opt => opt.MapFrom(src => src.Address))
+                 .ForMember(dest => dest.StatusHistory, opt => opt.MapFrom(src =>
+                     src.StatusHistories.OrderBy(h => h.ChangedAt)));
 
             CreateMap<OrderItem, OrderItemResponseDto>()
-                 .ForMember(dest => dest.Title,opt => opt.MapFrom(src => src.Book.Title));
+                 .ForMember(dest => dest.Title,opt => opt.MapFrom(src => src.Book.Title))
+                 .ForMember(dest => dest.ImageUrl, opt => opt.MapFrom(src =>
+                     src.Book != null ? src.Book.ImageUrl : null));
 
             CreateMap<OrderCreateDto, Order>();
             CreateMap<OrderItemCreateDto, OrderItem>();

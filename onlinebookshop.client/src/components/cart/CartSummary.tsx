@@ -3,6 +3,7 @@
 // =============================================
 
 import { useNavigate } from "react-router-dom";
+import { DELIVERY_CHARGE, FREE_DELIVERY_THRESHOLD, getDeliveryCharge } from "../../utils/pricing";
 
 interface Props {
     totalAmount: number;
@@ -11,14 +12,12 @@ interface Props {
     clearing: boolean;
 }
 
-const DELIVERY_CHARGE = 60;
-const FREE_DELIVERY_THRESHOLD = 500;
 const currency = new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function CartSummary({ totalAmount, itemCount, onClearCart, clearing }: Props) {
     const navigate = useNavigate();
     const isFreeDelivery = totalAmount >= FREE_DELIVERY_THRESHOLD;
-    const deliveryCharge = isFreeDelivery ? 0 : DELIVERY_CHARGE;
+    const deliveryCharge = getDeliveryCharge(totalAmount);
     const grandTotal = totalAmount + deliveryCharge;
     const remainingForFree = Math.max(0, FREE_DELIVERY_THRESHOLD - totalAmount);
     const progress = Math.min(100, Math.round((totalAmount / FREE_DELIVERY_THRESHOLD) * 100));

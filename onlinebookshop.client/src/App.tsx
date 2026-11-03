@@ -18,6 +18,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import VendorDashboardPage from "./pages/VendorDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import OrdersPage from "./pages/OrdersPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
 import VendorRegisterPage from "./pages/VendorRegisterPage";
 import BookDetailPage from "./pages/BookDetailPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -138,6 +139,15 @@ export default function App() {
                                 <ProtectedRoute>
                                     <OrdersPage />
                                 </ProtectedRoute>
+                            }
+                        />
+
+                        <Route
+                            path="/orders/:orderId"
+                            element={
+                                <RoleRoute allowedRoles={["Customer"]}>
+                                    <OrderDetailPage />
+                                </RoleRoute>
                             }
                         />
 

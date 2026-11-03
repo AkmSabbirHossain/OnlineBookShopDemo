@@ -8,20 +8,7 @@ import axios from "axios";
 import Navbar from "../components/common/Navbar";
 import OrderService from "../services/order.service";
 import type { OrderResponseDto, OrderStatus } from "../types/order.types";
-
-// ── Numeric enum → string ──
-const STATUS_MAP: Record<number, OrderStatus> = {
-    0: "Pending",
-    1: "Paid",
-    2: "Shipped",
-    3: "Delivered",
-    4: "Cancelled",
-};
-
-function getStatus(status: OrderStatus | number): OrderStatus {
-    if (typeof status === "number") return STATUS_MAP[status] ?? "Pending";
-    return status;
-}
+import { getOrderStatus } from "../utils/orderStatus";
 
 // ── Status badge ──
 function StatusBadge({ status }: { status: OrderStatus }) {
@@ -52,7 +39,7 @@ function OrderCard({
     cancelling: number | null;
 }) {
     const [expanded, setExpanded] = useState(false);
-    const currentStatus = getStatus(order.status);
+    const currentStatus = getOrderStatus(order.status);
     const canCancel = currentStatus === "Pending"; 
 
     return (
@@ -117,7 +104,7 @@ function OrderCard({
                                         to={`/books/${item.bookId}`}
                                         className="text-dark text-decoration-none fw-semibold small"
                                     >
-                                        Book #{item.bookId}
+                                        {item.title || `Book #${item.bookId}`}
                                     </Link>
                                     <span className="text-muted small ms-2">× {item.quantity}</span>
                                 </div>
@@ -129,31 +116,40 @@ function OrderCard({
                     </div>
                 )}
 
-                {/* Cancel Button — only for Pending  */}
-                {canCancel && (
-                    <div className="mt-3">
-                        <button
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={() => onCancel(order.orderId)}
-                            disabled={cancelling === order.orderId}
-                        >
-                            {cancelling === order.orderId ? (
-                                <>
-                                    <span className="spinner-border spinner-border-sm me-1" />
-                                    Cancelling...
-                                </>
-                            ) : (
-                                <>
-                                    <i className="bi bi-x-circle me-1"></i>
-                                    Cancel Order
-                                </>
-                            )}
-                        </button>
-                        <small className="text-muted ms-2">
-                            Only pending orders can be cancelled
-                        </small>
-                    </div>
-                )}
+                {/* Actions */}
+                <div className="d-flex flex-wrap align-items-center gap-2 mt-3">
+                    <Link
+                        to={`/orders/${order.orderId}`}
+                        className="btn btn-primary btn-sm"
+                    >
+                        <i className="bi bi-receipt me-1"></i>
+                        View details
+                    </Link>
+                    {canCancel && (
+                        <>
+                            <button
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={() => onCancel(order.orderId)}
+                                disabled={cancelling === order.orderId}
+                            >
+                                {cancelling === order.orderId ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-1" />
+                                        Cancelling...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="bi bi-x-circle me-1"></i>
+                                        Cancel Order
+                                    </>
+                                )}
+                            </button>
+                            <small className="text-muted">
+                                Only pending orders can be cancelled
+                            </small>
+                        </>
+                    )}
+                </div>
 
             </div>
         </div>
@@ -227,7 +223,7 @@ export default function OrdersPage() {
     const filtered =
         filterStatus === "All"
             ? orders
-            : orders.filter((o) => getStatus(o.status) === filterStatus);
+            : orders.filter((o) => getOrderStatus(o.status) === filterStatus);
 
     return (
         <>
@@ -295,7 +291,7 @@ export default function OrdersPage() {
                                     const count =
                                         s === "All"
                                             ? orders.length
-                                            : orders.filter((o) => getStatus(o.status) === s).length;
+                                            : orders.filter((o) => getOrderStatus(o.status) === s).length;
                                     return (
                                         <button
                                             key={s}

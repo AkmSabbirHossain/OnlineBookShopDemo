@@ -52,6 +52,12 @@ namespace OnlineBookShop.Server.Application.Services
                         TotalAmount = 0m
                     };
 
+                    order.StatusHistories.Add(new OrderStatusHistory
+                    {
+                        Status = OrderStatus.Pending,
+                        ChangedAt = order.OrderDate
+                    });
+
                     var orderItems = new List<OrderItem>();
                     var stockChanges = new List<(int BookId, int OldStock, int NewStock, int Quantity, int LowStockThreshold, string Title, int VendorUserId)>();
 
@@ -184,6 +190,7 @@ namespace OnlineBookShop.Server.Application.Services
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Book)
                 .Include(o => o.Address)
+                .Include(o => o.StatusHistories)
                 .FirstOrDefaultAsync(o => o.OrderId == orderId && o.UserId == userId);
 
             return order == null ? null : _mapper.Map<OrderResponseDto>(order);
@@ -247,6 +254,13 @@ namespace OnlineBookShop.Server.Application.Services
                     // here would mark the included Books as Modified and overwrite the
                     // raw stock increments below with stale values.
                     order.Status = OrderStatus.Cancelled;
+
+                    _unitOfWork.Repository<OrderStatusHistory>().Add(new OrderStatusHistory
+                    {
+                        OrderId = orderId,
+                        Status = OrderStatus.Cancelled,
+                        ChangedAt = DateTime.UtcNow
+                    });
 
                     foreach (var item in order.OrderItems)
                     {
@@ -357,7 +371,18 @@ namespace OnlineBookShop.Server.Application.Services
 
             // Tracked entity: do not call Update(order), it would mark the included
             // Books as Modified and can overwrite concurrent stock changes.
+            var statusChanged = order.Status != newStatus;
             order.Status = newStatus;
+
+            if (statusChanged)
+            {
+                _unitOfWork.Repository<OrderStatusHistory>().Add(new OrderStatusHistory
+                {
+                    OrderId = orderId,
+                    Status = newStatus,
+                    ChangedAt = DateTime.UtcNow
+                });
+            }
 
             //  Delivered hole VendorEarning create koro
             if (newStatus == OrderStatus.Delivered)
@@ -424,6 +449,12 @@ namespace OnlineBookShop.Server.Application.Services
 
             order.Status = OrderStatus.Shipped;
             _unitOfWork.Repository<Order>().Update(order);
+            _unitOfWork.Repository<OrderStatusHistory>().Add(new OrderStatusHistory
+            {
+                OrderId = orderId,
+                Status = OrderStatus.Shipped,
+                ChangedAt = DateTime.UtcNow
+            });
             await _unitOfWork.SaveChangesAsync();
 
    

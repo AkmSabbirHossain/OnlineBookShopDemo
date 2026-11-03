@@ -21,6 +21,14 @@ export interface OrderItemResponseDto {
     price: number;
     title: string;
     bookTitle?: string;
+    imageUrl?: string;
+}
+
+export interface OrderStatusHistoryDto {
+    orderStatusHistoryId: number;
+    orderId: number;
+    status: OrderStatus;
+    changedAt: string;
 }
 
 export interface OrderAddressDto {
@@ -41,6 +49,7 @@ export interface OrderResponseDto {
     orderDate: string;
     items: OrderItemResponseDto[];
     address?: OrderAddressDto;
+    statusHistory?: OrderStatusHistoryDto[];
     createdAt?: string;
 }
 

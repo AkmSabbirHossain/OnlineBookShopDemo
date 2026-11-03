@@ -15,11 +15,9 @@ import AuthService from "../services/auth.service";
 import type { CartResponseDto } from "../types/cart.types";
 import type { AddressResponseDto } from "../types/address.types";
 import type { OrderResponseDto } from "../types/order.types";
+import { getDeliveryCharge } from "../utils/pricing";
 
 type Step = "address" | "review" | "success";
-
-const DELIVERY_CHARGE = 60;
-const FREE_DELIVERY_THRESHOLD = 500;
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -100,8 +98,7 @@ export default function CheckoutPage() {
   };
 
   const selectedAddress = addresses.find((a) => a.addressId === selectedAddressId) ?? null;
-  const isFreeDelivery = (cart?.totalAmount ?? 0) >= FREE_DELIVERY_THRESHOLD;
-  const deliveryCharge = isFreeDelivery ? 0 : DELIVERY_CHARGE;
+  const deliveryCharge = getDeliveryCharge(cart?.totalAmount ?? 0);
 
   const steps = [
     { key: "address", label: "Address", icon: "bi-geo-alt" },

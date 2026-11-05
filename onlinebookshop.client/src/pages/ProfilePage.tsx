@@ -1,10 +1,11 @@
 // =============================================
-// ProfilePage.tsx — Full profile page
+// ProfilePage.tsx ï¿½ Full profile page
 // =============================================
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
+import Seo from "../components/common/Seo";
 import ProfileInfo from "../components/profile/ProfileInfo";
 import AddressManager from "../components/profile/AddressManager";
 import ChangePassword from "../components/profile/ChangePassword";
@@ -13,10 +14,12 @@ import AddressService from "../services/address.service";
 import AuthService from "../services/auth.service";
 import type { UserProfileDto } from "../types/profile.types";
 import type { AddressResponseDto } from "../types/address.types";
+import { useLanguage } from "../i18n/language-context";
 
 type Tab = "profile" | "addresses" | "password";
 
 export default function ProfilePage() {
+    const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<Tab>("profile");
     const [profile, setProfile] = useState<UserProfileDto | null>(null);
     const [addresses, setAddresses] = useState<AddressResponseDto[]>([]);
@@ -58,6 +61,7 @@ export default function ProfilePage() {
     return (
         <>
             <Navbar />
+            <Seo title={t("seo.profileTitle")} noindex />
             <div className="bg-light min-vh-100 py-4">
                 <div className="container" style={{ maxWidth: "900px" }}>
                     {/* Header */}

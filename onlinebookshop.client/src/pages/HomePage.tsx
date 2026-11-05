@@ -1,13 +1,23 @@
-﻿// =============================================
-// HomePage.tsx
 // =============================================
-
-import { useState, useEffect } from "react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
+// HomePage.tsx — storefront home & catalog
+// URL is the single source of truth for filters.
+// =============================================
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+
 import Navbar from "../components/common/Navbar";
+import Footer from "../components/common/Footer";
+import Seo from "../components/common/Seo";
 import BookCard from "../components/books/BookCard";
 import CreatorCard from "../components/creators/CreatorCard";
+import HeroSlider, { HeroSkeleton } from "../components/home/HeroSlider";
+import { useLanguage } from "../i18n/language-context";
+import type { TranslationKey } from "../i18n/translations";
+import { categoryPath } from "../utils/slug";
+import { absoluteUrl } from "../utils/seo";
+
 import BookService from "../services/book.service";
 import CartService from "../services/cart.service";
 import AuthService from "../services/auth.service";
@@ -15,127 +25,476 @@ import BannerService from "../services/banner.service";
 import CreatorService from "../services/creator.service";
 
 import type {
+    BookFilterParams,
     BookResponseDto,
     CategoryResponseDto,
-    BookFilterParams,
 } from "../types/book.types";
 import type { BannerResponseDto } from "../types/banner.types";
 import type { AuthorResponseDto, PublisherResponseDto } from "../types/creator.types";
 
-const PAGE_SIZE = 20;
+import "./home.css";
 
-const DEFAULT_FILTERS: BookFilterParams = {
-    search: undefined,
-    categoryId: undefined,
-    minPrice: undefined,
-    maxPrice: undefined,
-    sortBy: undefined,
-    page: 1,
-    pageSize: PAGE_SIZE,
+const PAGE_SIZE = 20;
+const LANDING_ALL_BOOKS = 20;
+const LANDING_NEW_ARRIVALS = 10;
+const LANDING_CREATORS = 12;
+
+type SortValue = NonNullable<BookFilterParams["sortBy"]>;
+
+const SORT_OPTIONS: { value: SortValue | ""; labelKey: TranslationKey }[] = [
+    { value: "", labelKey: "sort.recommended" },
+    { value: "newest", labelKey: "sort.newest" },
+    { value: "rating_desc", labelKey: "sort.topRated" },
+    { value: "popular", labelKey: "sort.popular" },
+    { value: "price_asc", labelKey: "sort.priceLowHigh" },
+    { value: "price_desc", labelKey: "sort.priceHighLow" },
+    { value: "title_asc", labelKey: "sort.titleAZ" },
+];
+
+const SORT_LOOKUP: Record<string, SortValue> = {
+    new: "newest",
+    newest: "newest",
+    createdatdesc: "newest",
+    oldest: "title_asc",
+    rating: "rating_desc",
+    ratingdesc: "rating_desc",
+    toprated: "rating_desc",
+    popular: "popular",
+    popularity: "popular",
+    priceasc: "price_asc",
+    lowtohigh: "price_asc",
+    pricedesc: "price_desc",
+    hightolow: "price_desc",
+    titleasc: "title_asc",
+    az: "title_asc",
+    titledesc: "title_desc",
+    za: "title_desc",
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
-    "Fiction": "bi-book",
-    "Science": "bi-flask",
-    "History": "bi-bank",
-    "Children": "bi-balloon",
-    "Religion": "bi-moon-stars",
-    "Biography": "bi-person",
-    "Technology": "bi-cpu",
-    "Business": "bi-briefcase",
-    "Poetry": "bi-pen",
-    "Travel": "bi-compass",
+    fiction: "bi-book",
+    nonfiction: "bi-journal-text",
+    science: "bi-flask",
+    history: "bi-bank",
+    childrensbooks: "bi-balloon",
+    religion: "bi-moon-stars",
+    biography: "bi-person",
+    technology: "bi-cpu",
+    business: "bi-briefcase",
+    poetry: "bi-pen",
+    travel: "bi-compass",
+    islamic: "bi-moon-stars",
+    academic: "bi-mortarboard",
 };
 
-// ── Section Header ──
+const EMPTY_DRAFT: FilterDraft = {
+    search: "",
+    categoryId: undefined,
+    minPrice: "",
+    maxPrice: "",
+    inStockOnly: false,
+};
+
+// ── URL helpers ──
+interface ParsedUrl {
+    search?: string;
+    categorySlug?: string;
+    sortBy?: SortValue;
+    minPrice?: number;
+    maxPrice?: number;
+    inStockOnly: boolean;
+    page: number;
+    showAll: boolean;
+}
+
+interface FilterDraft {
+    search: string;
+    categoryId?: number;
+    minPrice: string;
+    maxPrice: string;
+    inStockOnly: boolean;
+}
+
+function normalizeKey(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function singularize(key: string): string {
+    return key.endsWith("s") ? key.slice(0, -1) : key;
+}
+
+function normalizeSort(raw: string | null): SortValue | undefined {
+    if (!raw) return undefined;
+    return SORT_LOOKUP[normalizeKey(raw)];
+}
+
+function parseMoney(raw: string | null): number | undefined {
+    if (raw === null || raw.trim() === "") return undefined;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function readPathCategory(pathname: string): string | undefined {
+    const prefix = "/category/";
+    if (!pathname.startsWith(prefix)) return undefined;
+    const segment = pathname.slice(prefix.length).split("/")[0];
+    if (!segment) return undefined;
+    try {
+        return decodeURIComponent(segment).toLowerCase();
+    } catch {
+        return undefined;
+    }
+}
+
+function parseUrlState(
+    rawSearch: string,
+    pathCategory: string | undefined,
+    catalogPath: boolean
+): ParsedUrl {
+    const params = new URLSearchParams(rawSearch);
+    const search = params.get("search")?.trim() || undefined;
+    const categorySlug =
+        pathCategory ?? (params.get("category")?.trim().toLowerCase() || undefined);
+    const sortBy = normalizeSort(params.get("sort"));
+    const minPrice = parseMoney(params.get("minPrice"));
+    const maxPrice = parseMoney(params.get("maxPrice"));
+    const inStockOnly = params.get("inStock") === "true";
+    const parsedPage = Number.parseInt(params.get("page") ?? "1", 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+    const showAll =
+        catalogPath ||
+        Boolean(
+            search ||
+            categorySlug ||
+            sortBy ||
+            minPrice !== undefined ||
+            maxPrice !== undefined ||
+            inStockOnly ||
+            page > 1
+        );
+
+    return { search, categorySlug, sortBy, minPrice, maxPrice, inStockOnly, page, showAll };
+}
+
+function isAllBooksSlug(slug: string): boolean {
+    const key = normalizeKey(slug);
+    return key === "books" || key === "all" || key === "allbooks";
+}
+
+function matchCategory(
+    categories: CategoryResponseDto[],
+    slug: string
+): CategoryResponseDto | undefined {
+    const key = normalizeKey(slug);
+    if (!key) return undefined;
+
+    const exact = categories.find((cat) => normalizeKey(cat.name) === key);
+    if (exact) return exact;
+
+    const singular = singularize(key);
+    const bySingular = categories.filter(
+        (cat) => singularize(normalizeKey(cat.name)) === singular
+    );
+    if (bySingular.length === 1) return bySingular[0];
+
+    const byPrefix = categories.filter((cat) => {
+        const nameKey = normalizeKey(cat.name);
+        return nameKey.startsWith(key) || key.startsWith(nameKey);
+    });
+    return byPrefix.length === 1 ? byPrefix[0] : undefined;
+}
+
+interface CatalogLocation {
+    pathname: string;
+    search: string;
+}
+
+function buildLocation(
+    filters: BookFilterParams,
+    catalog: boolean,
+    categories: CategoryResponseDto[]
+): CatalogLocation {
+    if (!catalog) return { pathname: "/", search: "" };
+
+    let pathname = "/books";
+    if (filters.categoryId !== undefined) {
+        const category = categories.find((cat) => cat.categoryId === filters.categoryId);
+        if (category) pathname = categoryPath(category.name);
+    }
+
+    const params = new URLSearchParams();
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
+    if (filters.sortBy) params.set("sort", filters.sortBy);
+    if (filters.minPrice !== undefined) params.set("minPrice", String(filters.minPrice));
+    if (filters.maxPrice !== undefined) params.set("maxPrice", String(filters.maxPrice));
+    if (filters.inStockOnly) params.set("inStock", "true");
+    if ((filters.page ?? 1) > 1) params.set("page", String(filters.page));
+
+    const search = params.toString();
+    return { pathname, search: search ? `?${search}` : "" };
+}
+
+function readError(err: unknown, fallback: string): string {
+    if (axios.isAxiosError(err)) {
+        const data = err.response?.data as { message?: string; title?: string } | undefined;
+        return data?.message || data?.title || fallback;
+    }
+    return fallback;
+}
+
+function getPaginationPages(current: number, total: number): (number | "…")[] {
+    if (total <= 6) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | "…")[] = [1];
+    if (current > 3) pages.push("…");
+    for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+        pages.push(i);
+    }
+    if (current < total - 2) pages.push("…");
+    pages.push(total);
+    return pages;
+}
+
+// ── Shared UI ──
 function SectionHeader({
+    id,
     title,
+    subtitle,
     icon,
-    onSeeAll,
+    actionLabel,
+    onAction,
 }: {
+    id: string;
     title: string;
+    subtitle?: string;
     icon?: string;
-    onSeeAll?: () => void;
+    actionLabel?: string;
+    onAction?: () => void;
 }) {
     return (
-        <div className="d-flex align-items-center justify-content-between mb-3">
-            <div className="d-flex align-items-center gap-2">
-                <div
-                    style={{
-                        width: "4px",
-                        height: "24px",
-                        background: "linear-gradient(180deg, #1a237e, #3949ab)",
-                        borderRadius: "2px",
-                    }}
-                />
-                {icon && <i className={`bi ${icon} text-primary`} style={{ fontSize: "16px" }}></i>}
-                <h5 className="fw-bold mb-0" style={{ fontSize: "15px" }}>{title}</h5>
+        <div className="hm-section-head">
+            <div className="hm-section-heading">
+                {icon && (
+                    <span className="hm-section-icon" aria-hidden="true">
+                        <i className={`bi ${icon}`} />
+                    </span>
+                )}
+                <div>
+                    <h2 id={id} className="hm-section-title">
+                        {title}
+                    </h2>
+                    {subtitle && <p className="hm-section-sub">{subtitle}</p>}
+                </div>
             </div>
-            {onSeeAll && (
-                <button
-                    className="btn btn-link btn-sm text-decoration-none p-0 fw-semibold"
-                    onClick={onSeeAll}
-                    style={{ fontSize: "13px" }}
-                >
-                    See All <i className="bi bi-arrow-right ms-1"></i>
+            {onAction && actionLabel && (
+                <button type="button" className="hm-viewall" onClick={onAction}>
+                    {actionLabel}
+                    <i className="bi bi-arrow-right" aria-hidden="true" />
                 </button>
             )}
         </div>
     );
 }
 
-// ── Hero Slider (Full Width) ──
-function HeroSlider({ banners }: { banners: BannerResponseDto[] }) {
-    const [index, setIndex] = useState(0);
+function InlineNotice({
+    tone = "warning",
+    title,
+    actionLabel,
+    onAction,
+    children,
+}: {
+    tone?: "warning" | "error";
+    title?: string;
+    actionLabel?: string;
+    onAction?: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <div
+            className={`hm-notice${tone === "error" ? " is-error" : ""}`}
+            role={tone === "error" ? "alert" : "status"}
+        >
+            <i
+                className={`bi ${tone === "error" ? "bi-exclamation-octagon" : "bi-info-circle"}`}
+                aria-hidden="true"
+            />
+            <div className="hm-notice-body">
+                {title && <p className="hm-notice-title">{title}</p>}
+                <p className="hm-notice-text">{children}</p>
+            </div>
+            {onAction && (
+                <button type="button" className="hm-notice-action" onClick={onAction}>
+                    {actionLabel}
+                </button>
+            )}
+        </div>
+    );
+}
 
-    useEffect(() => {
-        if (banners.length <= 1) return;
-        const timer = setInterval(() => {
-            setIndex((prev) => (prev + 1) % banners.length);
-        }, 4000);
-        return () => clearInterval(timer);
-    }, [banners.length]);
+function ErrorCard({
+    title,
+    message,
+    onRetry,
+}: {
+    title: string;
+    message: string;
+    onRetry: () => void;
+}) {
+    const { t } = useLanguage();
+    return (
+        <div className="hm-error-card" role="alert">
+            <span className="hm-state-icon" aria-hidden="true">
+                <i className="bi bi-wifi-off" />
+            </span>
+            <h2>{title}</h2>
+            <p>{message}</p>
+            <button type="button" className="hm-btn hm-btn--dark" onClick={onRetry}>
+                <i className="bi bi-arrow-clockwise" aria-hidden="true" />
+                {t("common.tryAgain")}
+            </button>
+        </div>
+    );
+}
 
-    if (banners.length === 0) return null;
+function EmptyState({
+    title,
+    message,
+    actionLabel,
+    onAction,
+}: {
+    title: string;
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
+}) {
+    return (
+        <div className="hm-empty">
+            <span className="hm-state-icon" aria-hidden="true">
+                <i className="bi bi-search" />
+            </span>
+            <h2>{title}</h2>
+            <p>{message}</p>
+            {onAction && actionLabel && (
+                <button type="button" className="hm-btn hm-btn--primary" onClick={onAction}>
+                    {actionLabel}
+                </button>
+            )}
+        </div>
+    );
+}
+
+function CategoryTile({
+    category,
+    onSelect,
+}: {
+    category: CategoryResponseDto;
+    onSelect: (category: CategoryResponseDto) => void;
+}) {
+    const { t, formatNumber } = useLanguage();
+    const [imageFailed, setImageFailed] = useState(false);
+    const icon = CATEGORY_ICONS[normalizeKey(category.name)] ?? "bi-bookmark";
+    const showImage = !!category.imageUrl && !imageFailed;
+    const countLabel =
+        category.bookCount === 1
+            ? t("common.bookOne")
+            : t("common.bookMany", { count: formatNumber(category.bookCount) });
 
     return (
-        <div className="hero-slider-fullwidth">
-            {banners.map((b, i) => {
-                const slide = (
-                    <div
-                        key={b.bannerId}
-                        className={`hero-slide ${i === index ? "hero-slide-active" : ""}`}
-                    >
-                        <img src={b.imageUrl} alt={b.title} className="hero-slide-img" />
-                        <div className="hero-slide-caption">
-                            <div className="hero-slide-title">{b.title}</div>
-                            {b.subtitle && (
-                                <div className="hero-slide-subtitle">{b.subtitle}</div>
-                            )}
+        <button
+            type="button"
+            className="hm-cat-tile"
+            onClick={() => onSelect(category)}
+            aria-label={`${t("home.browseByCategory")} — ${category.name}, ${countLabel}`}
+        >
+            <span className="hm-cat-media">
+                {showImage ? (
+                    <img
+                        src={category.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        onError={() => setImageFailed(true)}
+                    />
+                ) : (
+                    <i className={`bi ${icon}`} aria-hidden="true" />
+                )}
+            </span>
+            <span className="hm-cat-body">
+                <span className="hm-cat-name">{category.name}</span>
+                <span className="hm-cat-count">{countLabel}</span>
+            </span>
+        </button>
+    );
+}
+
+// ── Skeletons ──
+const GRID_COLS = "row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-5 g-2 g-sm-3";
+
+function BookSkeletonGrid({ count = 10 }: { count?: number }) {
+    return (
+        <div className={GRID_COLS} aria-hidden="true">
+            {Array.from({ length: count }).map((_, i) => (
+                <div className="col" key={i}>
+                    <div className="hm-skeleton-card">
+                        <div className="hm-skeleton hm-skeleton-cover" />
+                        <div className="hm-skeleton-lines">
+                            <div className="hm-skeleton hm-skeleton-line" />
+                            <div className="hm-skeleton hm-skeleton-line short" />
+                            <div className="hm-skeleton hm-skeleton-line short" />
                         </div>
                     </div>
-                );
-                return b.linkUrl ? (
-                    <a key={b.bannerId} href={b.linkUrl} style={{ textDecoration: "none" }}>
-                        {slide}
-                    </a>
-                ) : (
-                    slide
-                );
-            })}
-
-            {banners.length > 1 && (
-                <div className="hero-slider-dots">
-                    {banners.map((b, i) => (
-                        <button
-                            key={b.bannerId}
-                            className={`hero-slider-dot ${i === index ? "hero-slider-dot-active" : ""}`}
-                            onClick={() => setIndex(i)}
-                            aria-label={`Go to slide ${i + 1}`}
-                        />
-                    ))}
                 </div>
-            )}
+            ))}
+        </div>
+    );
+}
+
+function CategorySkeletonGrid({ count = 6 }: { count?: number }) {
+    return (
+        <div className="hm-cat-grid" aria-hidden="true">
+            {Array.from({ length: count }).map((_, i) => (
+                <div key={i} className="hm-skeleton hm-skeleton-tile" />
+            ))}
+        </div>
+    );
+}
+
+function CreatorSkeletonStrip({ count = 5 }: { count?: number }) {
+    return (
+        <div className="hm-skeleton-strip" aria-hidden="true">
+            {Array.from({ length: count }).map((_, i) => (
+                <div key={i} className="hm-skeleton hm-skeleton-creator" />
+            ))}
+        </div>
+    );
+}
+
+// ── Book grid ──
+function BookGrid({
+    books,
+    onAddToCart,
+    addingToCart,
+    cartQuantities,
+}: {
+    books: BookResponseDto[];
+    onAddToCart: (bookId: number) => void;
+    addingToCart: number | null;
+    cartQuantities: Record<number, number>;
+}) {
+    return (
+        <div className={`hm-grid ${GRID_COLS}`}>
+            {books.map((book) => (
+                <div key={book.bookId} className="col">
+                    <BookCard
+                        book={book}
+                        onAddToCart={onAddToCart}
+                        addingToCart={addingToCart === book.bookId}
+                        cartQuantity={cartQuantities[book.bookId] ?? 0}
+                    />
+                </div>
+            ))}
         </div>
     );
 }
@@ -143,28 +502,323 @@ function HeroSlider({ banners }: { banners: BannerResponseDto[] }) {
 export default function HomePage() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { t, formatNumber } = useLanguage();
 
-    const [catalogBooks, setCatalogBooks] = useState<BookResponseDto[]>([]);
-    const [catalogTotal, setCatalogTotal] = useState(0);
-    const [newArrivals, setNewArrivals] = useState<BookResponseDto[]>([]);
+    // ── Catalog data ──
     const [landingBooks, setLandingBooks] = useState<BookResponseDto[]>([]);
     const [landingTotal, setLandingTotal] = useState(0);
-    const [categories, setCategories] = useState<CategoryResponseDto[]>([]);
-    const [banners, setBanners] = useState<BannerResponseDto[]>([]);
-    const [authors, setAuthors] = useState<AuthorResponseDto[]>([]);
-    const [publishers, setPublishers] = useState<PublisherResponseDto[]>([]);
-    const [filters, setFilters] = useState<BookFilterParams>(DEFAULT_FILTERS);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [newArrivals, setNewArrivals] = useState<BookResponseDto[]>([]);
+    const [landingLoading, setLandingLoading] = useState(true);
+    const [landingError, setLandingError] = useState("");
+    const [catalogBooks, setCatalogBooks] = useState<BookResponseDto[]>([]);
+    const [catalogTotal, setCatalogTotal] = useState(0);
+    const [catalogLoading, setCatalogLoading] = useState(true);
+    const [catalogError, setCatalogError] = useState("");
     const [reloadToken, setReloadToken] = useState(0);
+
+    // ── Home meta ──
+    const [categories, setCategories] = useState<CategoryResponseDto[]>([]);
+    const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+    const [categoriesError, setCategoriesError] = useState("");
+    const [banners, setBanners] = useState<BannerResponseDto[]>([]);
+    const [bannersLoading, setBannersLoading] = useState(true);
+    const [bannersError, setBannersError] = useState("");
+    const [authors, setAuthors] = useState<AuthorResponseDto[]>([]);
+    const [authorsLoading, setAuthorsLoading] = useState(true);
+    const [publishers, setPublishers] = useState<PublisherResponseDto[]>([]);
+    const [publishersLoading, setPublishersLoading] = useState(true);
+    const [metaReload, setMetaReload] = useState(0);
+
+    // ── Filter UI ──
+    const [draft, setDraft] = useState<FilterDraft>(EMPTY_DRAFT);
+    const [priceError, setPriceError] = useState("");
+    const [filtersOpen, setFiltersOpen] = useState(false);
+
+    // ── Cart & toasts ──
+    const [cartQuantities, setCartQuantities] = useState<Record<number, number>>({});
+    const [addingToCart, setAddingToCart] = useState<number | null>(null);
     const [cartMessage, setCartMessage] = useState("");
     const [cartError, setCartError] = useState("");
-    const [addingToCart, setAddingToCart] = useState<number | null>(null);
-    const [cartQuantities, setCartQuantities] = useState<Record<number, number>>({});
-    const [showAllBooks, setShowAllBooks] = useState(false);
 
-    const fetchCartQuantities = async () => {
-        if (!AuthService.isAuthenticated()) return;
+    const resultsRef = useRef<HTMLDivElement | null>(null);
+    const pendingScroll = useRef(false);
+    const messageTimer = useRef<number | null>(null);
+    const errorTimer = useRef<number | null>(null);
+
+    // ── URL-derived state ──
+    const pathCategory = useMemo(
+        () => readPathCategory(location.pathname),
+        [location.pathname]
+    );
+    const isCatalogPath = location.pathname === "/books" || pathCategory !== undefined;
+
+    const urlState = useMemo(
+        () => parseUrlState(location.search, pathCategory, isCatalogPath),
+        [location.search, pathCategory, isCatalogPath]
+    );
+
+    const matchedCategory = useMemo(() => {
+        if (!urlState.categorySlug || isAllBooksSlug(urlState.categorySlug)) return undefined;
+        return matchCategory(categories, urlState.categorySlug);
+    }, [urlState.categorySlug, categories]);
+
+    const awaitingCategoryResolution =
+        !!urlState.categorySlug && !matchedCategory && !categoriesLoaded;
+
+    const activeFilters = useMemo<BookFilterParams>(
+        () => ({
+            search: urlState.search,
+            categoryId: matchedCategory?.categoryId,
+            sortBy: urlState.sortBy,
+            minPrice: urlState.minPrice,
+            maxPrice: urlState.maxPrice,
+            inStockOnly: urlState.inStockOnly,
+            page: urlState.page,
+            pageSize: PAGE_SIZE,
+        }),
+        [urlState, matchedCategory]
+    );
+
+    const showResults = urlState.showAll;
+
+    const unresolvedCategory =
+        urlState.categorySlug &&
+        !isAllBooksSlug(urlState.categorySlug) &&
+        categoriesLoaded &&
+        !matchedCategory
+            ? urlState.categorySlug
+            : null;
+
+    // ── Meta loading ──
+    useEffect(() => {
+        let active = true;
+        setBannersLoading(true);
+        setBannersError("");
+        BannerService.getActive()
+            .then((list) => {
+                if (active) setBanners(list);
+            })
+            .catch((err: unknown) => {
+                if (active) setBannersError(readError(err, t("home.bannerError")));
+            })
+            .finally(() => {
+                if (active) setBannersLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [metaReload, t]);
+
+    useEffect(() => {
+        let active = true;
+        setCategoriesError("");
+        BookService.getCategories()
+            .then((list) => {
+                if (active) setCategories(list);
+            })
+            .catch((err: unknown) => {
+                if (active) setCategoriesError(readError(err, t("home.categoryError")));
+            })
+            .finally(() => {
+                if (active) setCategoriesLoaded(true);
+            });
+        return () => {
+            active = false;
+        };
+    }, [metaReload, t]);
+
+    useEffect(() => {
+        let active = true;
+        setAuthorsLoading(true);
+        CreatorService.getAuthors({ page: 1, pageSize: LANDING_CREATORS })
+            .then((result) => {
+                if (active) setAuthors(result.items);
+            })
+            .catch(() => {
+                if (active) setAuthors([]);
+            })
+            .finally(() => {
+                if (active) setAuthorsLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [metaReload]);
+
+    useEffect(() => {
+        let active = true;
+        setPublishersLoading(true);
+        CreatorService.getPublishers({ page: 1, pageSize: LANDING_CREATORS })
+            .then((result) => {
+                if (active) setPublishers(result.items);
+            })
+            .catch(() => {
+                if (active) setPublishers([]);
+            })
+            .finally(() => {
+                if (active) setPublishersLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [metaReload]);
+
+    // ── Landing data ──
+    useEffect(() => {
+        if (showResults) return;
+        const controller = new AbortController();
+
+        setLandingLoading(true);
+        setLandingError("");
+        Promise.all([
+            BookService.searchBooks(
+                { page: 1, pageSize: LANDING_ALL_BOOKS },
+                controller.signal
+            ),
+            BookService.searchBooks(
+                { page: 1, pageSize: LANDING_NEW_ARRIVALS, sortBy: "newest" },
+                controller.signal
+            ),
+        ])
+            .then(([all, newest]) => {
+                setLandingBooks(all.items);
+                setLandingTotal(all.totalCount);
+                setNewArrivals(newest.items);
+            })
+            .catch((err: unknown) => {
+                if (controller.signal.aborted) return;
+                setLandingError(readError(err, t("home.loadCatalogError")));
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLandingLoading(false);
+            });
+
+        return () => controller.abort();
+    }, [showResults, reloadToken, t]);
+
+    // ── Filtered catalog ──
+    useEffect(() => {
+        if (!showResults || awaitingCategoryResolution) return;
+        const controller = new AbortController();
+
+        setCatalogLoading(true);
+        setCatalogError("");
+        BookService.searchBooks(activeFilters, controller.signal)
+            .then((result) => {
+                setCatalogBooks(result.items);
+                setCatalogTotal(result.totalCount);
+            })
+            .catch((err: unknown) => {
+                if (controller.signal.aborted) return;
+                setCatalogError(readError(err, t("home.loadFilteredError")));
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setCatalogLoading(false);
+            });
+
+        return () => controller.abort();
+    }, [showResults, activeFilters, awaitingCategoryResolution, reloadToken, t]);
+
+    // ── Draft sync ──
+    useEffect(() => {
+        setDraft({
+            search: urlState.search ?? "",
+            categoryId: matchedCategory?.categoryId,
+            minPrice: urlState.minPrice === undefined ? "" : String(urlState.minPrice),
+            maxPrice: urlState.maxPrice === undefined ? "" : String(urlState.maxPrice),
+            inStockOnly: urlState.inStockOnly,
+        });
+        setPriceError("");
+    }, [
+        urlState.search,
+        urlState.minPrice,
+        urlState.maxPrice,
+        urlState.inStockOnly,
+        matchedCategory,
+    ]);
+
+    // ── Legacy query URLs → clean paths ──
+    useEffect(() => {
+        if (location.pathname !== "/") return;
+        const params = new URLSearchParams(location.search);
+        const legacyKeys = [
+            "view",
+            "category",
+            "search",
+            "sort",
+            "minPrice",
+            "maxPrice",
+            "inStock",
+            "page",
+        ];
+        if (!legacyKeys.some((key) => params.has(key))) return;
+
+        const categorySlug = params.get("category")?.trim().toLowerCase();
+        if (categorySlug && !isAllBooksSlug(categorySlug)) {
+            if (!categoriesLoaded) return;
+            const matched = matchCategory(categories, categorySlug);
+            if (!matched) {
+                const remaining = new URLSearchParams(params);
+                remaining.delete("category");
+                remaining.delete("view");
+                const search = remaining.toString();
+                navigate(
+                    {
+                        pathname: `/category/${encodeURIComponent(categorySlug)}`,
+                        search: search ? `?${search}` : "",
+                    },
+                    { replace: true }
+                );
+                return;
+            }
+            navigate(
+                buildLocation(
+                    {
+                        search: params.get("search")?.trim() || undefined,
+                        categoryId: matched.categoryId,
+                        minPrice: parseMoney(params.get("minPrice")),
+                        maxPrice: parseMoney(params.get("maxPrice")),
+                        inStockOnly: params.get("inStock") === "true",
+                        sortBy: normalizeSort(params.get("sort")),
+                        page: Math.max(
+                            1,
+                            Number.parseInt(params.get("page") ?? "1", 10) || 1
+                        ),
+                    },
+                    true,
+                    categories
+                ),
+                { replace: true }
+            );
+            return;
+        }
+
+        navigate(
+            buildLocation(
+                {
+                    search: params.get("search")?.trim() || undefined,
+                    minPrice: parseMoney(params.get("minPrice")),
+                    maxPrice: parseMoney(params.get("maxPrice")),
+                    inStockOnly: params.get("inStock") === "true",
+                    sortBy: normalizeSort(params.get("sort")),
+                    page: Math.max(
+                        1,
+                        Number.parseInt(params.get("page") ?? "1", 10) || 1
+                    ),
+                },
+                true,
+                categories
+            ),
+            { replace: true }
+        );
+    }, [location.pathname, location.search, categories, categoriesLoaded, navigate]);
+
+    // ── Cart ──
+    const fetchCartQuantities = useCallback(async () => {
+        if (!AuthService.isAuthenticated()) {
+            setCartQuantities({});
+            return;
+        }
         try {
             const cart = await CartService.getMyCart();
             const quantities: Record<number, number> = {};
@@ -173,120 +827,147 @@ export default function HomePage() {
             });
             setCartQuantities(quantities);
         } catch (err) {
-            console.error("Failed to fetch cart", err);
+            if (
+                axios.isAxiosError(err) &&
+                (err.response?.status === 401 || err.response?.status === 403)
+            ) {
+                setCartQuantities({});
+                return;
+            }
+            console.error("Failed to load cart", err);
         }
-    };
-
-    useEffect(() => {
-        BookService.getCategories().then(setCategories).catch(() => { });
-        BannerService.getActive().then(setBanners).catch(() => { });
-        CreatorService.getAuthors({ page: 1, pageSize: 12 }).then((res) => setAuthors(res.items)).catch(() => { });
-        CreatorService.getPublishers({ page: 1, pageSize: 12 }).then((res) => setPublishers(res.items)).catch(() => { });
-        fetchCartQuantities();
     }, []);
 
-    const isBrowsing = !!(
-        filters.search ||
-        filters.categoryId !== undefined ||
-        filters.sortBy ||
-        filters.minPrice !== undefined ||
-        filters.maxPrice !== undefined
-    );
-
-    // ── Server-side catalog loading ──
     useEffect(() => {
-        if (!isBrowsing && !showAllBooks) {
-            let cancelled = false;
-            setLoading(true);
-            setError("");
-            Promise.all([
-                BookService.searchBooks({ page: 1, pageSize: PAGE_SIZE }),
-                BookService.searchBooks({ page: 1, pageSize: 10, sortBy: "newest" }),
-            ])
-                .then(([latest, newest]) => {
-                    if (cancelled) return;
-                    setLandingBooks(latest.items);
-                    setLandingTotal(latest.totalCount);
-                    setNewArrivals(newest.items);
-                })
-                .catch((err: unknown) => {
-                    if (cancelled) return;
-                    setError(
-                        axios.isAxiosError(err)
-                            ? err.response?.data?.message || "Failed to load books."
-                            : "Something went wrong."
-                    );
-                })
-                .finally(() => {
-                    if (!cancelled) setLoading(false);
-                });
-            return () => {
-                cancelled = true;
-            };
-        }
+        void fetchCartQuantities();
+    }, [fetchCartQuantities]);
 
-        let cancelled = false;
-        setLoading(true);
-        setError("");
-        BookService.searchBooks({
-            search: filters.search,
-            categoryId: filters.categoryId,
-            minPrice: filters.minPrice,
-            maxPrice: filters.maxPrice,
-            sortBy: filters.sortBy,
-            page: filters.page ?? 1,
-            pageSize: PAGE_SIZE,
-        })
-            .then((result) => {
-                if (cancelled) return;
-                setCatalogBooks(result.items);
-                setCatalogTotal(result.totalCount);
-            })
-            .catch((err: unknown) => {
-                if (cancelled) return;
-                setError(
-                    axios.isAxiosError(err)
-                        ? err.response?.data?.message || "Failed to load books."
-                        : "Something went wrong."
-                );
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
-
-        return () => {
-            cancelled = true;
+    useEffect(() => {
+        const handleCartUpdate = () => {
+            void fetchCartQuantities();
         };
-    }, [filters, showAllBooks, reloadToken]);
-
-    useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const searchParam = params.get("search");
-        if (searchParam && searchParam.trim()) {
-            setFilters({ ...DEFAULT_FILTERS, search: searchParam.trim() });
-            setShowAllBooks(true);
-        } else {
-            setFilters(DEFAULT_FILTERS);
-            setShowAllBooks(false);
-        }
-    }, [location.search]);
-
-    useEffect(() => {
-        const handleCartUpdate = () => fetchCartQuantities();
         window.addEventListener("cartUpdated", handleCartUpdate);
         return () => window.removeEventListener("cartUpdated", handleCartUpdate);
+    }, [fetchCartQuantities]);
+
+    useEffect(() => {
+        return () => {
+            if (messageTimer.current) window.clearTimeout(messageTimer.current);
+            if (errorTimer.current) window.clearTimeout(errorTimer.current);
+        };
     }, []);
 
-    const currentPage = filters.page ?? 1;
-    const totalCount = catalogTotal;
-    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    // ── Scroll behaviour ──
+    const scrollToResults = useCallback(() => {
+        const node = resultsRef.current;
+        if (!node) return;
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        node.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    }, []);
 
-    // ── Handlers ──
-    const handleCategoryClick = (categoryId: number) => {
-        setFilters({ ...DEFAULT_FILTERS, categoryId });
-        setShowAllBooks(true);
-        navigate("/", { replace: true });
-        window.scrollTo({ top: 0, behavior: "smooth" });
+    useEffect(() => {
+        if (!showResults || !pendingScroll.current) return;
+        pendingScroll.current = false;
+        const id = window.setTimeout(scrollToResults, 80);
+        return () => window.clearTimeout(id);
+    }, [showResults, scrollToResults]);
+
+    // ── Filtering ──
+    const applyFilters = useCallback(
+        (next: BookFilterParams, catalog: boolean, replace = false) => {
+            setPriceError("");
+            const target = buildLocation(next, catalog, categories);
+            if (
+                target.pathname === location.pathname &&
+                target.search === location.search
+            ) {
+                return;
+            }
+            navigate(target, { replace });
+        },
+        [categories, location.pathname, location.search, navigate]
+    );
+
+    const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        const rawMin = draft.minPrice.trim();
+        const rawMax = draft.maxPrice.trim();
+        const minValue = rawMin === "" ? undefined : Number(rawMin);
+        const maxValue = rawMax === "" ? undefined : Number(rawMax);
+
+        if (
+            (minValue !== undefined && (!Number.isFinite(minValue) || minValue < 0)) ||
+            (maxValue !== undefined && (!Number.isFinite(maxValue) || maxValue < 0))
+        ) {
+            setPriceError(t("home.priceInvalid"));
+            return;
+        }
+
+        if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+            setPriceError(t("home.priceRangeInvalid"));
+            return;
+        }
+
+        setFiltersOpen(false);
+        applyFilters(
+            {
+                search: draft.search.trim() || undefined,
+                categoryId: draft.categoryId,
+                minPrice: minValue,
+                maxPrice: maxValue,
+                inStockOnly: draft.inStockOnly,
+                sortBy: activeFilters.sortBy,
+                page: 1,
+            },
+            true
+        );
+        scrollToResults();
+    };
+
+    const handleSortChange = (value: string) => {
+        applyFilters(
+            {
+                ...activeFilters,
+                sortBy: value ? (value as SortValue) : undefined,
+                page: 1,
+            },
+            true
+        );
+    };
+
+    const handlePageChange = (page: number) => {
+        if (page < 1) return;
+        applyFilters({ ...activeFilters, page }, true, true);
+        scrollToResults();
+    };
+
+    const handleClearFilters = () => {
+        setFiltersOpen(false);
+        applyFilters({}, true);
+    };
+
+    const handleChipRemove = (key: "search" | "category" | "price" | "stock" | "sort") => {
+        const next: BookFilterParams = { ...activeFilters, page: 1 };
+        if (key === "search") next.search = undefined;
+        if (key === "category") next.categoryId = undefined;
+        if (key === "price") {
+            next.minPrice = undefined;
+            next.maxPrice = undefined;
+        }
+        if (key === "stock") next.inStockOnly = false;
+        if (key === "sort") next.sortBy = undefined;
+        applyFilters(next, true);
+    };
+
+    const handleCategoryClick = (category: CategoryResponseDto) => {
+        pendingScroll.current = true;
+        navigate({ pathname: categoryPath(category.name) });
+    };
+
+    const handleSeeAllBooks = (sortBy?: SortValue) => {
+        pendingScroll.current = true;
+        navigate(buildLocation({ sortBy, page: 1 }, true, categories));
     };
 
     const handleAddToCart = async (bookId: number) => {
@@ -294,590 +975,633 @@ export default function HomePage() {
             navigate("/auth");
             return;
         }
+        if (addingToCart === bookId) return;
+
         setAddingToCart(bookId);
         setCartError("");
         setCartMessage("");
+
         try {
             await CartService.addItem({ bookId, quantity: 1 });
-            setCartMessage("Book added to cart!");
             setCartQuantities((prev) => ({
                 ...prev,
                 [bookId]: (prev[bookId] ?? 0) + 1,
             }));
+            setCartMessage(t("home.cartAdded"));
             window.dispatchEvent(new Event("cartUpdated"));
-            setTimeout(() => setCartMessage(""), 2500);
+            if (messageTimer.current) window.clearTimeout(messageTimer.current);
+            messageTimer.current = window.setTimeout(() => setCartMessage(""), 2600);
         } catch (err: unknown) {
-            if (axios.isAxiosError(err))
-                setCartError(
-                    err.response?.data?.message || "Failed to add to cart."
-                );
-            else setCartError("Something went wrong.");
-            setTimeout(() => setCartError(""), 3000);
+            setCartError(readError(err, t("home.cartFailed")));
+            if (errorTimer.current) window.clearTimeout(errorTimer.current);
+            errorTimer.current = window.setTimeout(() => setCartError(""), 3200);
         } finally {
             setAddingToCart(null);
         }
     };
 
-    const handleAddToWishlist = (bookId: number) => {
-        if (!AuthService.isAuthenticated()) {
-            navigate("/auth");
-            return;
-        }
-        console.log("Wishlist:", bookId);
-    };
+    // ── Derived view data ──
+    const totalPages = Math.max(1, Math.ceil(catalogTotal / PAGE_SIZE));
+    const currentPage = Math.min(urlState.page, totalPages);
+    const activeFilterCount = [
+        Boolean(urlState.search),
+        Boolean(matchedCategory),
+        urlState.minPrice !== undefined || urlState.maxPrice !== undefined,
+        urlState.inStockOnly,
+        Boolean(urlState.sortBy),
+    ].filter(Boolean).length;
 
-    const handlePageChange = (page: number) => {
-        setFilters((prev) => ({ ...prev, page }));
-        window.scrollTo({ top: 400, behavior: "smooth" });
-    };
+    const resultsTitle = urlState.search
+        ? t("home.resultsFor", { query: urlState.search })
+        : matchedCategory
+            ? matchedCategory.name
+            : t("home.allBooks");
 
-    const handleReset = () => {
-        setFilters(DEFAULT_FILTERS);
-        setShowAllBooks(false);
-        navigate("/", { replace: true });
-    };
+    const money = (value: number) => `৳${formatNumber(value)}`;
 
-    const getPaginationPages = (): (number | "...")[] => {
-        const pages: (number | "...")[] = [];
-        if (totalPages <= 5) {
-            for (let i = 1; i <= totalPages; i++) pages.push(i);
-        } else {
-            pages.push(1);
-            if (currentPage > 3) pages.push("...");
-            for (
-                let i = Math.max(2, currentPage - 1);
-                i <= Math.min(totalPages - 1, currentPage + 1);
-                i++
-            )
-                pages.push(i);
-            if (currentPage < totalPages - 2) pages.push("...");
-            pages.push(totalPages);
-        }
-        return pages;
-    };
+    const priceLabel =
+        urlState.minPrice !== undefined && urlState.maxPrice !== undefined
+            ? t("home.priceRange", {
+                  min: money(urlState.minPrice),
+                  max: money(urlState.maxPrice),
+              })
+            : urlState.minPrice !== undefined
+                ? t("home.priceFrom", { min: money(urlState.minPrice) })
+                : urlState.maxPrice !== undefined
+                    ? t("home.priceUpTo", { max: money(urlState.maxPrice) })
+                    : "";
 
-    // ── Sub-components ──
-    const BookGrid = ({ books }: { books: BookResponseDto[] }) => (
-        <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2 g-sm-3">
-            {books.map((book) => (
-                <div key={book.bookId} className="col">
-                    <BookCard
-                        book={book}
-                        onAddToCart={handleAddToCart}
-                        onAddToWishlist={handleAddToWishlist}
-                        addingToCart={addingToCart === book.bookId}
-                        cartQuantity={cartQuantities[book.bookId] ?? 0}
-                    />
-                </div>
-            ))}
-        </div>
+    const sortLabel = t(
+        SORT_OPTIONS.find((option) => option.value === (urlState.sortBy ?? ""))?.labelKey ??
+            "sort.recommended"
     );
 
-    const SkeletonGrid = ({ count = 5 }: { count?: number }) => (
-        <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-2 g-sm-3">
-            {Array.from({ length: count }).map((_, i) => (
-                <div key={i} className="col">
-                    <div
-                        className="card border-0 rounded-3 placeholder-glow"
-                        style={{ height: "280px" }}
-                    >
-                        <div
-                            className="placeholder rounded-top"
-                            style={{ height: "170px" }}
-                        ></div>
-                        <div className="card-body p-2">
-                            <p className="placeholder col-10 mb-1"></p>
-                            <p className="placeholder col-7 mb-2"></p>
-                            <p className="placeholder col-5"></p>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
+    const metaError = categoriesError || bannersError;
 
-    // =============================================
-    // RENDER
-    // =============================================
+    const seoTitle = urlState.search
+        ? t("seo.searchTitle", { query: urlState.search })
+        : matchedCategory
+            ? t("seo.categoryTitle", { name: matchedCategory.name })
+            : showResults
+                ? t("seo.catalogTitle")
+                : t("seo.defaultTitle");
+    const seoDescription = matchedCategory?.description || t("seo.defaultDescription");
+    const seoPath = showResults ? location.pathname : "/";
+
+    const seoJsonLd = useMemo(() => {
+        const base = { "@context": "https://schema.org" };
+        if (!showResults) {
+            return [
+                {
+                    ...base,
+                    "@type": "WebSite",
+                    name: "Sabbir BookMall",
+                    url: absoluteUrl("/"),
+                    potentialAction: {
+                        "@type": "SearchAction",
+                        target: `${absoluteUrl("/books")}?search={search_term_string}`,
+                        "query-input": "required name=search_term_string",
+                    },
+                },
+                {
+                    ...base,
+                    "@type": "Organization",
+                    name: "Sabbir BookMall",
+                    url: absoluteUrl("/"),
+                    logo: absoluteUrl("/og-cover.png"),
+                },
+            ];
+        }
+        return [
+            {
+                ...base,
+                "@type": "BreadcrumbList",
+                itemListElement: [
+                    {
+                        "@type": "ListItem",
+                        position: 1,
+                        name: t("footer.home"),
+                        item: absoluteUrl("/"),
+                    },
+                    {
+                        "@type": "ListItem",
+                        position: 2,
+                        name: resultsTitle,
+                        item: absoluteUrl(location.pathname),
+                    },
+                ],
+            },
+        ];
+    }, [showResults, resultsTitle, location.pathname, t]);
+
     return (
         <>
             <Navbar />
+            <Seo
+                title={seoTitle}
+                description={seoDescription}
+                path={seoPath}
+                jsonLd={seoJsonLd}
+            />
 
-            {/* Toast notifications */}
-            {cartMessage && (
-                <div
-                    className="position-fixed bottom-0 end-0 m-2 m-sm-3 alert alert-success shadow d-flex align-items-center gap-2 py-2"
-                    style={{
-                        zIndex: 9999,
-                        minWidth: "200px",
-                        maxWidth: "calc(100vw - 16px)",
-                        fontSize: "14px",
-                    }}
-                >
-                    <i className="bi bi-check-circle-fill flex-shrink-0"></i>
-                    <span>{cartMessage}</span>
-                </div>
-            )}
-            {cartError && (
-                <div
-                    className="position-fixed bottom-0 end-0 m-2 m-sm-3 alert alert-danger shadow d-flex align-items-center gap-2 py-2"
-                    style={{
-                        zIndex: 9999,
-                        minWidth: "200px",
-                        maxWidth: "calc(100vw - 16px)",
-                        fontSize: "14px",
-                    }}
-                >
-                    <i className="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-                    <span>{cartError}</span>
-                </div>
-            )}
+            <div className="hm-page">
+                <h1 className="hm-sr-only">{t("home.h1")}</h1>
 
-            <div style={{ background: "#f0f2f5", minHeight: "100vh" }}>
+                {bannersLoading ? (
+                    <HeroSkeleton />
+                ) : banners.length > 0 ? (
+                    <HeroSlider banners={banners} />
+                ) : null}
 
-                <style>{`
-                    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700&family=DM+Sans:wght@300;400;500;600&display=swap');
-
-                    /* ── Full-width Hero Slider ── */
-                    .hero-slider-fullwidth {
-                        position: relative;
-                        width: 100%;
-                        height: 420px;
-                        overflow: hidden;
-                    }
-                    @media (max-width: 767px) {
-                        .hero-slider-fullwidth { height: 220px; }
-                    }
-                    @media (min-width: 768px) and (max-width: 1199px) {
-                        .hero-slider-fullwidth { height: 340px; }
-                    }
-                    .hero-slide {
-                        position: absolute;
-                        inset: 0;
-                        opacity: 0;
-                        transition: opacity 0.8s ease;
-                        pointer-events: none;
-                    }
-                    .hero-slide-active {
-                        opacity: 1;
-                        pointer-events: auto;
-                    }
-                    .hero-slide-img {
-                        width: 100%;
-                        height: 100%;
-                        object-fit: cover;
-                        object-position: center top;
-                    }
-                    .hero-slide-caption {
-                        position: absolute;
-                        left: 0; right: 0; bottom: 0;
-                        padding: 20px 28px;
-                        background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%);
-                        color: #fff;
-                    }
-                    .hero-slide-title {
-                        font-family: 'Playfair Display', serif;
-                        font-weight: 700;
-                        font-size: 20px;
-                    }
-                    @media (max-width: 575px) {
-                        .hero-slide-title { font-size: 14px; }
-                        .hero-slide-caption { padding: 12px 14px; }
-                    }
-                    .hero-slide-subtitle { font-size: 13px; opacity: 0.85; }
-                    .hero-slider-dots {
-                        position: absolute;
-                        bottom: 14px; right: 18px;
-                        display: flex; gap: 6px;
-                        z-index: 2;
-                    }
-                    .hero-slider-dot {
-                        width: 8px; height: 8px;
-                        border-radius: 50%;
-                        border: none;
-                        background: rgba(255,255,255,0.5);
-                        transition: all 0.3s;
-                        padding: 0; cursor: pointer;
-                    }
-                    .hero-slider-dot-active {
-                        background: #fff;
-                        width: 22px;
-                        border-radius: 4px;
-                    }
-
-                    /* ── Category pills ── */
-                    .cat-pills-wrap {
-                        display: flex; gap: 8px;
-                        flex-wrap: wrap; align-items: center;
-                    }
-
-                    /* ── Section cards ── */
-                    .section-card {
-                        background: #fff; border-radius: 14px;
-                        padding: 16px; margin-bottom: 16px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 8px rgba(0,0,0,0.03);
-                    }
-                    @media (min-width: 576px) {
-                        .section-card { padding: 24px; margin-bottom: 20px; }
-                    }
-
-                    /* ── Filter / sort bars ── */
-                    .filter-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-                    .sort-bar   { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-                    /* ── Pagination ── */
-                    .pagination-wrap {
-                        display: flex; justify-content: center;
-                        overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
-                    }
-                    .pagination-wrap .pagination { flex-wrap: nowrap; margin-bottom: 0; }
-                    @media (max-width: 575px) {
-                        .pagination-wrap .page-link { padding: 4px 8px; font-size: 13px; }
-                    }
-
-                    /* ── Category browse grid ── */
-                    .cat-browse-btn {
-                        transition: all 0.18s ease;
-                        background: #fafafa !important;
-                        border-color: #e0e0e0 !important;
-                        color: #333 !important;
-                    }
-                    .cat-browse-btn:hover {
-                        background: #1a237e !important;
-                        border-color: #1a237e !important;
-                        color: #fff !important;
-                        transform: translateY(-2px);
-                        box-shadow: 0 6px 20px rgba(26,35,126,0.22) !important;
-                    }
-
-                    /* ── Footer ── */
-                    .footer-root {
-                        background: linear-gradient(160deg, #0e1225 0%, #151c35 60%, #0e1225 100%);
-                        color: #fff; margin-top: 36px; padding: 48px 0 24px;
-                        border-top: 1px solid rgba(255,255,255,0.05);
-                    }
-                    .footer-grid {
-                        display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
-                    }
-                    @media (min-width: 768px) {
-                        .footer-grid { grid-template-columns: 2.2fr 1fr 1fr 1.8fr; }
-                    }
-                    .footer-link {
-                        color: rgba(255,255,255,0.52) !important;
-                        text-decoration: none !important;
-                        font-size: 13px;
-                        transition: color 0.18s;
-                        display: block; margin-bottom: 7px;
-                    }
-                    .footer-link:hover { color: rgba(255,255,255,0.88) !important; }
-                    .footer-brand-logo {
-                        display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
-                    }
-                    .footer-brand-icon {
-                        width: 36px; height: 36px; border-radius: 9px;
-                        background: linear-gradient(135deg, #1a237e, #3949ab);
-                        display: flex; align-items: center; justify-content: center;
-                        flex-shrink: 0;
-                    }
-                    .footer-brand-name {
-                        font-family: 'Playfair Display', serif;
-                        font-size: 17px; font-weight: 800; color: #fff; line-height: 1.1;
-                    }
-                    .footer-brand-tagline {
-                        font-family: 'DM Sans', sans-serif;
-                        font-size: 10px; color: rgba(255,255,255,0.38);
-                        letter-spacing: 0.06em; text-transform: uppercase;
-                    }
-                    .footer-feature {
-                        display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-                    }
-                    .footer-feature-icon {
-                        width: 30px; height: 30px; border-radius: 8px;
-                        background: rgba(255,255,255,0.07);
-                        display: flex; align-items: center; justify-content: center;
-                        flex-shrink: 0; font-size: 13px;
-                    }
-                `}</style>
-
-                {/* ══════════════════════════════════════════
-                    FULL-WIDTH BANNER SLIDER
-                ══════════════════════════════════════════ */}
-                {banners.length > 0 && <HeroSlider banners={banners} />}
-
-                {/* ══════════════════════════════════════════
-                    CATEGORY PILL TABS
-                ══════════════════════════════════════════ */}
-                {categories.length > 0 && (
-                    <div style={{ background: "#fff", borderBottom: "1px solid #eaeaea" }}>
-                        <div className="container py-3">
-                            <div className="cat-pills-wrap">
-                                <button
-                                    className={`btn btn-sm rounded-pill fw-semibold ${!filters.categoryId ? "btn-primary" : "btn-outline-secondary"}`}
-                                    onClick={handleReset}
-                                    style={{ fontSize: "12px", whiteSpace: "nowrap" }}
-                                >
-                                    All Books
-                                </button>
-                                {categories.map((cat) => (
-                                    <button
-                                        key={cat.categoryId}
-                                        className={`btn btn-sm rounded-pill fw-semibold ${filters.categoryId === cat.categoryId ? "btn-primary" : "btn-outline-secondary"}`}
-                                        onClick={() => handleCategoryClick(cat.categoryId)}
-                                        style={{ fontSize: "12px", whiteSpace: "nowrap" }}
-                                    >
-                                        <i className={`bi ${CATEGORY_ICONS[cat.name] ?? "bi-bookmark"} me-1`}></i>
-                                        {cat.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ══════════════════════════════════════════
-                    MAIN CONTENT
-                ══════════════════════════════════════════ */}
-                <div className="container py-3 py-sm-4">
-
-                    {/* Error banner */}
-                    {error && (
-                        <div className="alert alert-danger d-flex align-items-center gap-2 mb-3">
-                            <i className="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-                            <span>{error}</span>
-                            <button
-                                className="btn btn-link btn-sm ms-auto p-0 text-nowrap"
-                                onClick={() => setReloadToken((t) => t + 1)}
-                            >
-                                Retry
-                            </button>
-                        </div>
+                <main className="hm-container hm-main" id="main-content">
+                    {metaError && (
+                        <InlineNotice
+                            tone="error"
+                            title={t("home.metaError")}
+                            actionLabel={t("common.retry")}
+                            onAction={() => setMetaReload((token) => token + 1)}
+                        >
+                            {metaError}
+                        </InlineNotice>
                     )}
 
-                    {/* ── FILTERED / SEARCH RESULTS VIEW ── */}
-                    {(isBrowsing || showAllBooks) && (
-                        <div>
-                            {/* Active filters bar */}
-                            <div className="filter-bar mb-3">
-                                {filters.search && (
-                                    <span className="badge bg-primary-subtle text-primary-emphasis px-3 py-2">
-                                        <i className="bi bi-search me-1"></i>
-                                        &ldquo;{filters.search}&rdquo;
-                                        <button
-                                            className="btn-close btn-close-sm ms-2"
-                                            style={{ fontSize: "10px" }}
-                                            onClick={() => {
-                                                setFilters((p) => ({
-                                                    ...p,
-                                                    search: undefined,
-                                                    page: 1,
-                                                }));
-                                                navigate("/", { replace: true });
-                                            }}
-                                        ></button>
-                                    </span>
-                                )}
-                                {filters.categoryId !== undefined && (
-                                    <span className="badge bg-info-subtle text-info-emphasis px-3 py-2">
-                                        <i className="bi bi-tag me-1"></i>
-                                        {categories.find(
-                                            (c) => c.categoryId === filters.categoryId
-                                        )?.name}
-                                        <button
-                                            className="btn-close btn-close-sm ms-2"
-                                            style={{ fontSize: "10px" }}
-                                            onClick={() =>
-                                                setFilters((p) => ({
-                                                    ...p,
-                                                    categoryId: undefined,
-                                                    page: 1,
-                                                }))
-                                            }
-                                        ></button>
-                                    </span>
-                                )}
-                                <span className="text-muted small">
-                                    {totalCount} book{totalCount !== 1 ? "s" : ""} found
-                                </span>
-                                <button
-                                    className="btn btn-link btn-sm p-0 text-danger ms-auto text-nowrap"
-                                    onClick={handleReset}
-                                >
-                                    <i className="bi bi-x-circle me-1"></i>Clear all
-                                </button>
-                            </div>
-
-                            {/* Sort bar */}
-                            <div className="sort-bar mb-3">
-                                <span className="text-muted small fw-semibold text-nowrap">
-                                    Sort by:
-                                </span>
-                                {[
-                                    { value: undefined, label: "Default" },
-                                    { value: "newest", label: "Newest" },
-                                    { value: "rating_desc", label: "Top Rated" },
-                                    { value: "popular", label: "Popular" },
-                                    { value: "price_asc", label: "Price Low" },
-                                    { value: "price_desc", label: "Price High" },
-                                    { value: "title_asc", label: "A to Z" },
-                                ].map((s) => (
-                                    <button
-                                        key={s.label}
-                                        className={`btn btn-sm ${filters.sortBy === s.value ? "btn-primary" : "btn-outline-secondary"}`}
-                                        onClick={() =>
-                                            setFilters((p) => ({
-                                                ...p,
-                                                sortBy: s.value as BookFilterParams["sortBy"],
-                                                page: 1,
-                                            }))
-                                        }
-                                        style={{ fontSize: "12px", whiteSpace: "nowrap" }}
-                                    >
-                                        {s.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Results */}
-                            {loading ? (
-                                <SkeletonGrid count={10} />
-                            ) : catalogBooks.length === 0 ? (
-                                <div className="text-center py-5">
-                                    <div
-                                        style={{
-                                            width: "80px", height: "80px",
-                                            borderRadius: "50%",
-                                            background: "#f0f0f0",
-                                            display: "flex", alignItems: "center",
-                                            justifyContent: "center",
-                                            margin: "0 auto 16px",
-                                        }}
-                                    >
-                                        <i
-                                            className="bi bi-search"
-                                            style={{ fontSize: "32px", color: "#aaa" }}
-                                        ></i>
+                    {showResults ? (
+                        <section
+                            className="hm-results"
+                            ref={resultsRef}
+                            aria-labelledby="hm-results-title"
+                            aria-busy={catalogLoading || awaitingCategoryResolution}
+                        >
+                            <div className="hm-results-panel">
+                                <div className="hm-results-top">
+                                    <div>
+                                        <h2 id="hm-results-title" className="hm-results-title">
+                                            {resultsTitle}
+                                        </h2>
+                                        <p className="hm-results-count" aria-live="polite">
+                                            {catalogLoading || awaitingCategoryResolution
+                                                ? t("home.loadingBooks")
+                                                : t("home.booksFound", {
+                                                      count: formatNumber(catalogTotal),
+                                                  })}
+                                        </p>
                                     </div>
-                                    <h5 className="fw-bold">No books found</h5>
-                                    <p className="text-muted small">
-                                        Try different search terms or browse categories
-                                    </p>
-                                    <button
-                                        className="btn btn-primary px-4"
-                                        onClick={handleReset}
-                                    >
-                                        Browse All Books
-                                    </button>
+
+                                    <div className="hm-results-actions">
+                                        <button
+                                            type="button"
+                                            className="hm-filter-toggle"
+                                            aria-expanded={filtersOpen}
+                                            aria-controls="hm-filter-panel"
+                                            onClick={() => setFiltersOpen((open) => !open)}
+                                        >
+                                            <i className="bi bi-sliders2" aria-hidden="true" />
+                                            {t("home.filters")}
+                                            {activeFilterCount > 0 && (
+                                                <span className="hm-filter-count">
+                                                    {formatNumber(activeFilterCount)}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        <label className="hm-sort-label" htmlFor="hm-sort">
+                                            {t("home.sort")}
+                                        </label>
+                                        <select
+                                            id="hm-sort"
+                                            className="hm-select"
+                                            value={urlState.sortBy ?? ""}
+                                            onChange={(event) => handleSortChange(event.target.value)}
+                                        >
+                                            {SORT_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {t(option.labelKey)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
+
+                                {unresolvedCategory && (
+                                    <InlineNotice
+                                        title={t("home.categoryNotFound")}
+                                        actionLabel={t("home.showAllBooks")}
+                                        onAction={() => navigate({ pathname: "/books" })}
+                                    >
+                                        {t("home.categoryNotFoundBody", {
+                                            slug: unresolvedCategory,
+                                        })}
+                                    </InlineNotice>
+                                )}
+
+                                <form
+                                    id="hm-filter-panel"
+                                    className={`hm-filters-panel${filtersOpen ? " is-open" : ""}`}
+                                    onSubmit={handleFilterSubmit}
+                                    noValidate
+                                >
+                                    <div className="hm-filter-form">
+                                        <div className="hm-field">
+                                            <label htmlFor="hm-filter-search">
+                                                {t("home.search")}
+                                            </label>
+                                            <input
+                                                id="hm-filter-search"
+                                                className="hm-input"
+                                                type="search"
+                                                placeholder={t("home.filterSearchPlaceholder")}
+                                                value={draft.search}
+                                                onChange={(event) =>
+                                                    setDraft((prev) => ({
+                                                        ...prev,
+                                                        search: event.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+
+                                        <div className="hm-field">
+                                            <label htmlFor="hm-filter-category">
+                                                {t("home.category")}
+                                            </label>
+                                            <select
+                                                id="hm-filter-category"
+                                                className="hm-select"
+                                                value={draft.categoryId ?? ""}
+                                                disabled={!categoriesLoaded}
+                                                onChange={(event) =>
+                                                    setDraft((prev) => ({
+                                                        ...prev,
+                                                        categoryId:
+                                                            event.target.value === ""
+                                                                ? undefined
+                                                                : Number(event.target.value),
+                                                    }))
+                                                }
+                                            >
+                                                <option value="">{t("home.allCategories")}</option>
+                                                {categories.map((category) => (
+                                                    <option
+                                                        key={category.categoryId}
+                                                        value={category.categoryId}
+                                                    >
+                                                        {category.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="hm-field">
+                                            <span className="hm-field-label">{t("home.price")}</span>
+                                            <div className="hm-price-row">
+                                                <input
+                                                    className="hm-input"
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    min="0"
+                                                    step="1"
+                                                    placeholder={t("home.min")}
+                                                    aria-label={t("home.minPrice")}
+                                                    aria-invalid={!!priceError}
+                                                    aria-describedby={
+                                                        priceError ? "hm-price-error" : undefined
+                                                    }
+                                                    value={draft.minPrice}
+                                                    onChange={(event) => {
+                                                        setPriceError("");
+                                                        setDraft((prev) => ({
+                                                            ...prev,
+                                                            minPrice: event.target.value,
+                                                        }));
+                                                    }}
+                                                />
+                                                <span className="hm-price-sep" aria-hidden="true">
+                                                    –
+                                                </span>
+                                                <input
+                                                    className="hm-input"
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    min="0"
+                                                    step="1"
+                                                    placeholder={t("home.max")}
+                                                    aria-label={t("home.maxPrice")}
+                                                    aria-invalid={!!priceError}
+                                                    aria-describedby={
+                                                        priceError ? "hm-price-error" : undefined
+                                                    }
+                                                    value={draft.maxPrice}
+                                                    onChange={(event) => {
+                                                        setPriceError("");
+                                                        setDraft((prev) => ({
+                                                            ...prev,
+                                                            maxPrice: event.target.value,
+                                                        }));
+                                                    }}
+                                                />
+                                            </div>
+                                            {priceError && (
+                                                <p
+                                                    className="hm-field-error"
+                                                    id="hm-price-error"
+                                                    role="alert"
+                                                >
+                                                    {priceError}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="hm-field hm-filter-actions">
+                                            <label className="hm-check">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={draft.inStockOnly}
+                                                    onChange={(event) =>
+                                                        setDraft((prev) => ({
+                                                            ...prev,
+                                                            inStockOnly: event.target.checked,
+                                                        }))
+                                                    }
+                                                />
+                                                {t("home.inStockOnly")}
+                                            </label>
+                                            <button type="submit" className="hm-btn hm-btn--primary">
+                                                {t("home.applyFilters")}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+
+                                {activeFilterCount > 0 && (
+                                    <div className="hm-chips">
+                                        {urlState.search && (
+                                            <span className="hm-chip">
+                                                “{urlState.search}”
+                                                <button
+                                                    type="button"
+                                                    className="hm-chip-remove"
+                                                    aria-label={t("home.removeSearch")}
+                                                    onClick={() => handleChipRemove("search")}
+                                                >
+                                                    <i className="bi bi-x" aria-hidden="true" />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {matchedCategory && (
+                                            <span className="hm-chip">
+                                                {matchedCategory.name}
+                                                <button
+                                                    type="button"
+                                                    className="hm-chip-remove"
+                                                    aria-label={t("home.removeCategory", {
+                                                        name: matchedCategory.name,
+                                                    })}
+                                                    onClick={() => handleChipRemove("category")}
+                                                >
+                                                    <i className="bi bi-x" aria-hidden="true" />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {priceLabel && (
+                                            <span className="hm-chip">
+                                                {priceLabel}
+                                                <button
+                                                    type="button"
+                                                    className="hm-chip-remove"
+                                                    aria-label={t("home.removePrice")}
+                                                    onClick={() => handleChipRemove("price")}
+                                                >
+                                                    <i className="bi bi-x" aria-hidden="true" />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {urlState.inStockOnly && (
+                                            <span className="hm-chip">
+                                                {t("home.inStock")}
+                                                <button
+                                                    type="button"
+                                                    className="hm-chip-remove"
+                                                    aria-label={t("home.removeStock")}
+                                                    onClick={() => handleChipRemove("stock")}
+                                                >
+                                                    <i className="bi bi-x" aria-hidden="true" />
+                                                </button>
+                                            </span>
+                                        )}
+                                        {urlState.sortBy && (
+                                            <span className="hm-chip">
+                                                {sortLabel}
+                                                <button
+                                                    type="button"
+                                                    className="hm-chip-remove"
+                                                    aria-label={t("home.removeSort")}
+                                                    onClick={() => handleChipRemove("sort")}
+                                                >
+                                                    <i className="bi bi-x" aria-hidden="true" />
+                                                </button>
+                                            </span>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="hm-clear-link"
+                                            onClick={handleClearFilters}
+                                        >
+                                            {t("home.clearAll")}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {catalogLoading || awaitingCategoryResolution ? (
+                                <BookSkeletonGrid count={10} />
+                            ) : catalogError ? (
+                                <ErrorCard
+                                    title={t("home.booksCouldntLoad")}
+                                    message={catalogError}
+                                    onRetry={() => setReloadToken((token) => token + 1)}
+                                />
+                            ) : catalogBooks.length === 0 ? (
+                                <EmptyState
+                                    title={t("home.noMatch")}
+                                    message={t("home.noMatchBody")}
+                                    actionLabel={t("home.clearFilters")}
+                                    onAction={handleClearFilters}
+                                />
                             ) : (
                                 <>
-                                    <BookGrid books={catalogBooks} />
+                                    <BookGrid
+                                        books={catalogBooks}
+                                        onAddToCart={handleAddToCart}
+                                        addingToCart={addingToCart}
+                                        cartQuantities={cartQuantities}
+                                    />
 
                                     {totalPages > 1 && (
-                                        <nav
-                                            className="mt-4 pagination-wrap"
-                                            aria-label="Book pages"
-                                        >
+                                        <nav className="hm-pagination" aria-label={t("home.catalogPages")}>
                                             <ul className="pagination pagination-sm">
                                                 <li
-                                                    className={`page-item ${currentPage <= 1 ? "disabled" : ""}`}
+                                                    className={`page-item${
+                                                        currentPage === 1 ? " disabled" : ""
+                                                    }`}
                                                 >
                                                     <button
+                                                        type="button"
                                                         className="page-link"
-                                                        onClick={() =>
-                                                            handlePageChange(currentPage - 1)
-                                                        }
-                                                        aria-label="Previous"
+                                                        onClick={() => handlePageChange(currentPage - 1)}
+                                                        disabled={currentPage === 1}
+                                                        aria-label={t("home.prevPage")}
                                                     >
-                                                        <i className="bi bi-chevron-left"></i>
+                                                        <i
+                                                            className="bi bi-chevron-left"
+                                                            aria-hidden="true"
+                                                        />
                                                     </button>
                                                 </li>
-                                                {getPaginationPages().map((p, i) =>
-                                                    p === "..." ? (
-                                                        <li
-                                                            key={`e-${i}`}
-                                                            className="page-item disabled"
-                                                        >
-                                                            <span className="page-link">
-                                                                &hellip;
-                                                            </span>
-                                                        </li>
-                                                    ) : (
-                                                        <li
-                                                            key={p}
-                                                            className={`page-item ${currentPage === p ? "active" : ""}`}
-                                                        >
-                                                            <button
-                                                                className="page-link"
-                                                                onClick={() =>
-                                                                    handlePageChange(p as number)
-                                                                }
+
+                                                {getPaginationPages(currentPage, totalPages).map(
+                                                    (page, index) =>
+                                                        page === "…" ? (
+                                                            <li
+                                                                key={`gap-${index}`}
+                                                                className="page-item disabled"
                                                             >
-                                                                {p}
-                                                            </button>
-                                                        </li>
-                                                    )
+                                                                <span className="page-link">…</span>
+                                                            </li>
+                                                        ) : (
+                                                            <li
+                                                                key={page}
+                                                                className={`page-item${
+                                                                    page === currentPage
+                                                                        ? " active"
+                                                                        : ""
+                                                                }`}
+                                                            >
+                                                                <button
+                                                                    type="button"
+                                                                    className="page-link"
+                                                                    onClick={() => handlePageChange(page)}
+                                                                    aria-current={
+                                                                        page === currentPage
+                                                                            ? "page"
+                                                                            : undefined
+                                                                    }
+                                                                >
+                                                                    {formatNumber(page)}
+                                                                </button>
+                                                            </li>
+                                                        )
                                                 )}
+
                                                 <li
-                                                    className={`page-item ${currentPage >= totalPages ? "disabled" : ""}`}
+                                                    className={`page-item${
+                                                        currentPage === totalPages ? " disabled" : ""
+                                                    }`}
                                                 >
                                                     <button
+                                                        type="button"
                                                         className="page-link"
-                                                        onClick={() =>
-                                                            handlePageChange(currentPage + 1)
-                                                        }
-                                                        aria-label="Next"
+                                                        onClick={() => handlePageChange(currentPage + 1)}
+                                                        disabled={currentPage === totalPages}
+                                                        aria-label={t("home.nextPage")}
                                                     >
-                                                        <i className="bi bi-chevron-right"></i>
+                                                        <i
+                                                            className="bi bi-chevron-right"
+                                                            aria-hidden="true"
+                                                        />
                                                     </button>
                                                 </li>
                                             </ul>
                                         </nav>
                                     )}
-                                    <p
-                                        className="text-center text-muted small mt-2"
-                                        style={{ fontSize: "12px" }}
-                                    >
-                                        Showing{" "}
-                                        {(currentPage - 1) * PAGE_SIZE + 1}&ndash;
-                                        {Math.min(currentPage * PAGE_SIZE, totalCount)} of{" "}
-                                        {totalCount} books
+
+                                    <p className="hm-showing">
+                                        {t("home.showing", {
+                                            from: formatNumber(
+                                                (currentPage - 1) * PAGE_SIZE + 1
+                                            ),
+                                            to: formatNumber(
+                                                Math.min(currentPage * PAGE_SIZE, catalogTotal)
+                                            ),
+                                            total: formatNumber(catalogTotal),
+                                        })}
                                     </p>
                                 </>
                             )}
-                        </div>
-                    )}
-
-                    {/* ── LANDING SECTIONS ── */}
-                    {!isBrowsing && !showAllBooks && (
+                        </section>
+                    ) : (
                         <>
-                            {/* New Arrivals */}
-                            <div className="section-card">
+                            <section className="hm-section" aria-labelledby="hm-new-arrivals">
                                 <SectionHeader
-                                    title="New Arrivals"
+                                    id="hm-new-arrivals"
+                                    title={t("home.newArrivals")}
+                                    subtitle={t("home.newArrivalsSub")}
                                     icon="bi-stars"
-                                    onSeeAll={() => {
-                                        setFilters({
-                                            ...DEFAULT_FILTERS,
-                                            sortBy: "newest",
-                                        });
-                                        setShowAllBooks(true);
-                                    }}
+                                    actionLabel={t("common.seeAll")}
+                                    onAction={() => handleSeeAllBooks("newest")}
                                 />
-                                {loading ? (
-                                    <SkeletonGrid count={5} />
-                                ) : (
-                                    <BookGrid books={newArrivals} />
-                                )}
-                            </div>
-
-                            {/* Writers */}
-                            {authors.length > 0 && (
-                                <div className="section-card">
-                                    <SectionHeader
-                                        title="Popular Writers"
-                                        icon="bi-feather"
-                                        onSeeAll={() => navigate("/authors")}
+                                {landingLoading ? (
+                                    <BookSkeletonGrid count={5} />
+                                ) : newArrivals.length > 0 ? (
+                                    <BookGrid
+                                        books={newArrivals}
+                                        onAddToCart={handleAddToCart}
+                                        addingToCart={addingToCart}
+                                        cartQuantities={cartQuantities}
                                     />
+                                ) : (
+                                    <div className="hm-empty hm-empty--compact">
+                                        <p className="mb-0">{t("home.newArrivalsEmpty")}</p>
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="hm-section" aria-labelledby="hm-categories">
+                                <SectionHeader
+                                    id="hm-categories"
+                                    title={t("home.browseByCategory")}
+                                    subtitle={t("home.browseByCategorySub")}
+                                    icon="bi-grid-3x3-gap"
+                                />
+                                {!categoriesLoaded ? (
+                                    <CategorySkeletonGrid />
+                                ) : categories.length === 0 ? (
+                                    categoriesError ? (
+                                        <EmptyState
+                                            title={t("home.categoriesUnavailable")}
+                                            message={t("home.categoriesUnavailableBody")}
+                                            actionLabel={t("common.retry")}
+                                            onAction={() => setMetaReload((token) => token + 1)}
+                                        />
+                                    ) : (
+                                        <div className="hm-empty hm-empty--compact">
+                                            <p className="mb-0">{t("home.noCategories")}</p>
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="hm-cat-grid">
+                                        {categories.map((category) => (
+                                            <CategoryTile
+                                                key={category.categoryId}
+                                                category={category}
+                                                onSelect={handleCategoryClick}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="hm-section" aria-labelledby="hm-writers">
+                                <SectionHeader
+                                    id="hm-writers"
+                                    title={t("home.popularWriters")}
+                                    subtitle={t("home.popularWritersSub")}
+                                    icon="bi-pencil-square"
+                                    actionLabel={t("common.seeAll")}
+                                    onAction={() => navigate("/authors")}
+                                />
+                                {authorsLoading ? (
+                                    <CreatorSkeletonStrip />
+                                ) : authors.length > 0 ? (
                                     <div className="cr-strip">
                                         {authors.map((author) => (
                                             <CreatorCard
@@ -886,78 +1610,30 @@ export default function HomePage() {
                                                 id={author.authorId}
                                                 name={author.name}
                                                 imageUrl={author.imageUrl}
-                                                bio={author.bio}
                                                 bookCount={author.bookCount}
                                                 variant="strip"
                                             />
                                         ))}
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Browse by Category */}
-                            {categories.length > 0 && (
-                                <div className="section-card">
-                                    <SectionHeader
-                                        title="Browse by Category"
-                                        icon="bi-grid-3x3-gap"
-                                    />
-                                    <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2 g-sm-3">
-                                        {categories.map((cat) => (
-                                            <div key={cat.categoryId} className="col">
-                                                <button
-                                                    className="btn cat-browse-btn w-100 h-100 d-flex flex-column align-items-center justify-content-center gap-1 gap-sm-2 py-2 py-sm-3 rounded-3"
-                                                    onClick={() =>
-                                                        handleCategoryClick(cat.categoryId)
-                                                    }
-                                                    style={{
-                                                        fontSize: "11px",
-                                                        minHeight: "76px",
-                                                        border: "1.5px solid #e0e0e0",
-                                                    }}
-                                                >
-                                                    {cat.imageUrl ? (
-                                                        <img
-                                                            src={cat.imageUrl}
-                                                            alt={cat.name}
-                                                            style={{
-                                                                width: "160px",
-                                                                height: "80px",
-                                                                objectFit: "cover",
-                                                                borderRadius: "3px",
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <i className={`bi ${CATEGORY_ICONS[cat.name] ?? "bi-bookmark"} fs-5`}></i>
-                                                    )}
-                                                    <span
-                                                        className="fw-semibold text-center lh-sm"
-                                                        style={{ fontSize: "11px" }}
-                                                    >
-                                                        {cat.name}
-                                                    </span>
-                                                    <span
-                                                        className="badge bg-light text-muted"
-                                                        style={{ fontSize: "9px" }}
-                                                    >
-                                                        {cat.bookCount}{" "}
-                                                        books
-                                                    </span>
-                                                </button>
-                                            </div>
-                                        ))}
+                                ) : (
+                                    <div className="hm-empty hm-empty--compact">
+                                        <p className="mb-0">{t("home.writersEmpty")}</p>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </section>
 
-                            {/* Publishers */}
-                            {publishers.length > 0 && (
-                                <div className="section-card">
-                                    <SectionHeader
-                                        title="Publishers"
-                                        icon="bi-building"
-                                        onSeeAll={() => navigate("/publishers")}
-                                    />
+                            <section className="hm-section" aria-labelledby="hm-publishers">
+                                <SectionHeader
+                                    id="hm-publishers"
+                                    title={t("home.publishers")}
+                                    subtitle={t("home.publishersSub")}
+                                    icon="bi-building"
+                                    actionLabel={t("common.seeAll")}
+                                    onAction={() => navigate("/publishers")}
+                                />
+                                {publishersLoading ? (
+                                    <CreatorSkeletonStrip />
+                                ) : publishers.length > 0 ? (
                                     <div className="cr-strip">
                                         {publishers.map((publisher) => (
                                             <CreatorCard
@@ -966,188 +1642,85 @@ export default function HomePage() {
                                                 id={publisher.publisherId}
                                                 name={publisher.name}
                                                 imageUrl={publisher.imageUrl}
-                                                bio={publisher.bio}
                                                 bookCount={publisher.bookCount}
                                                 variant="strip"
                                             />
                                         ))}
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="hm-empty hm-empty--compact">
+                                        <p className="mb-0">{t("home.publishersEmpty")}</p>
+                                    </div>
+                                )}
+                            </section>
 
-                            {/* All Books */}
-                            <div className="section-card">
+                            <section className="hm-section" aria-labelledby="hm-all-books">
                                 <SectionHeader
-                                    title="All Books"
-                                    icon="bi-journals"
-                                    onSeeAll={() => setShowAllBooks(true)}
+                                    id="hm-all-books"
+                                    title={t("home.allBooks")}
+                                    subtitle={
+                                        landingTotal > 0
+                                            ? t("home.titlesAvailable", {
+                                                  count: formatNumber(landingTotal),
+                                              })
+                                            : undefined
+                                    }
+                                    icon="bi-journal-bookmark"
+                                    actionLabel={t("common.viewAll")}
+                                    onAction={() => handleSeeAllBooks()}
                                 />
-                                {loading ? (
-                                    <SkeletonGrid count={10} />
+                                {landingLoading ? (
+                                    <BookSkeletonGrid count={10} />
+                                ) : landingError ? (
+                                    <ErrorCard
+                                        title={t("home.booksCouldntLoad")}
+                                        message={landingError}
+                                        onRetry={() => setReloadToken((token) => token + 1)}
+                                    />
+                                ) : landingBooks.length === 0 ? (
+                                    <div className="hm-empty hm-empty--compact">
+                                        <p className="mb-0">{t("home.noBooks")}</p>
+                                    </div>
                                 ) : (
                                     <>
-                                        <BookGrid books={landingBooks} />
-                                        {landingTotal > landingBooks.length && (
-                                            <div className="text-center mt-4">
-                                                <button
-                                                    className="btn btn-outline-primary px-4 px-sm-5 fw-semibold"
-                                                    onClick={() => setShowAllBooks(true)}
-                                                >
-                                                    View All {landingTotal} Books
-                                                    <i className="bi bi-arrow-right ms-2"></i>
-                                                </button>
-                                            </div>
-                                        )}
+                                        <BookGrid
+                                            books={landingBooks}
+                                            onAddToCart={handleAddToCart}
+                                            addingToCart={addingToCart}
+                                            cartQuantities={cartQuantities}
+                                        />
+                                        <div className="hm-section-cta">
+                                            <button
+                                                type="button"
+                                                className="hm-btn hm-btn--outline"
+                                                onClick={() => handleSeeAllBooks()}
+                                            >
+                                                {t("common.browseAllBooks")}
+                                                <i className="bi bi-arrow-right" aria-hidden="true" />
+                                            </button>
+                                        </div>
                                     </>
                                 )}
-                            </div>
+                            </section>
                         </>
                     )}
-                </div>
+                </main>
 
-                {/* ══════════════════════════════════════════
-                    FOOTER
-                ══════════════════════════════════════════ */}
-                <footer className="footer-root">
-                    <div className="container">
-                        <div className="footer-grid mb-5">
-
-                            {/* Brand */}
-                            <div>
-                                <div className="footer-brand-logo">
-                                    <div className="footer-brand-icon">
-                                        <i
-                                            className="bi bi-book-half"
-                                            style={{ color: "#fff", fontSize: "16px" }}
-                                        ></i>
-                                    </div>
-                                    <div>
-                                        <div className="footer-brand-name">Sabbir BookMall</div>
-                                        <div className="footer-brand-tagline">Bangladesh's Book Marketplace</div>
-                                    </div>
-                                </div>
-                                <p
-                                    style={{
-                                        color: "rgba(255,255,255,0.45)",
-                                        fontSize: "13px",
-                                        lineHeight: "1.7",
-                                        maxWidth: "260px",
-                                    }}
-                                >
-                                    Bangladesh's multi-vendor online bookshop. Discover
-                                    books from verified vendors across every genre —
-                                    fiction, academic, Islamic, children's and more.
-                                </p>
-                            </div>
-
-                            {/* Quick Links */}
-                            <div>
-                                <h6
-                                    className="fw-bold mb-3"
-                                    style={{
-                                        fontSize: "12px",
-                                        color: "rgba(255,255,255,0.35)",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.08em",
-                                    }}
-                                >
-                                    Quick Links
-                                </h6>
-                                {[
-                                    { label: "Home", to: "/" },
-                                    { label: "My Orders", to: "/orders" },
-                                    { label: "Cart", to: "/cart" },
-                                    { label: "My Profile", to: "/profile" },
-                                ].map((l) => (
-                                    <Link key={l.label} to={l.to} className="footer-link">
-                                        {l.label}
-                                    </Link>
-                                ))}
-                            </div>
-
-                            {/* Sell Books */}
-                            <div>
-                                <h6
-                                    className="fw-bold mb-3"
-                                    style={{
-                                        fontSize: "12px",
-                                        color: "rgba(255,255,255,0.35)",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.08em",
-                                    }}
-                                >
-                                    Sell on BookMall
-                                </h6>
-                                <Link to="/vendor/register" className="footer-link">
-                                    Become a Vendor
-                                </Link>
-                                <Link to="/vendor/dashboard" className="footer-link">
-                                    Vendor Dashboard
-                                </Link>
-                                <Link to="/auth" className="footer-link">
-                                    Seller Login
-                                </Link>
-                            </div>
-
-                            {/* Why us */}
-                            <div>
-                                <h6
-                                    className="fw-bold mb-3"
-                                    style={{
-                                        fontSize: "12px",
-                                        color: "rgba(255,255,255,0.35)",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.08em",
-                                    }}
-                                >
-                                    Why Sabbir BookMall?
-                                </h6>
-                                {[
-                                    { icon: "bi-patch-check-fill", text: "100% Genuine Books", color: "#f59e0b" },
-                                    { icon: "bi-truck-front-fill", text: "Fast Nationwide Delivery", color: "#34d399" },
-                                    { icon: "bi-shield-lock-fill", text: "Secure Checkout", color: "#60a5fa" },
-                                    { icon: "bi-arrow-counterclockwise", text: "7-Day Easy Returns", color: "#f87171" },
-                                ].map((f) => (
-                                    <div key={f.text} className="footer-feature">
-                                        <div className="footer-feature-icon">
-                                            <i
-                                                className={`bi ${f.icon}`}
-                                                style={{ color: f.color, fontSize: "13px" }}
-                                            ></i>
-                                        </div>
-                                        <span
-                                            style={{
-                                                color: "rgba(255,255,255,0.6)",
-                                                fontSize: "13px",
-                                            }}
-                                        >
-                                            {f.text}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <hr style={{ borderColor: "rgba(255,255,255,0.08)", margin: "0 0 20px" }} />
-
-                        <div className="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2">
-                            <p
-                                className="mb-0"
-                                style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}
-                            >
-                                &copy; {new Date().getFullYear()} Sabbir BookMall. All rights reserved.
-                            </p>
-                            <p
-                                className="mb-0"
-                                style={{ color: "rgba(255,255,255,0.22)", fontSize: "12px" }}
-                            >
-                                Developed by Md Sabbir Hossain
-                            </p>
-                        </div>
-                    </div>
-                </footer>
-
+                <Footer />
             </div>
+
+            {cartMessage && (
+                <div className="hm-toast hm-toast--ok" role="status">
+                    <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                    <span>{cartMessage}</span>
+                </div>
+            )}
+            {cartError && (
+                <div className="hm-toast hm-toast--error" role="alert">
+                    <i className="bi bi-exclamation-triangle-fill" aria-hidden="true" />
+                    <span>{cartError}</span>
+                </div>
+            )}
         </>
     );
 }

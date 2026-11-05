@@ -5,12 +5,16 @@ import { useState } from 'react';
 import { useWishlist } from '../context/wishlist/useWishlist';
 import { Link } from 'react-router-dom';
 import CartService from '../services/cart.service';
+import { bookPath } from '../utils/slug';
+import Seo from '../components/common/Seo';
+import { useLanguage } from '../i18n/language-context';
 
 
 const PLACEHOLDER_IMG = "https://placehold.co/160x220/e8f4f8/2c7be5?text=No+Cover";
 
 const WishlistPage = () => {
     const { wishlistItems, removeFromWishlist, loading } = useWishlist();
+    const { t } = useLanguage();
     const [addingId, setAddingId] = useState<number | null>(null);
     const [addedId, setAddedId] = useState<number | null>(null);
 
@@ -57,6 +61,7 @@ const WishlistPage = () => {
 
     return (
         <div className="wishlist-page" style={{ padding: 24 }}>
+            <Seo title={t("seo.wishlistTitle")} noindex />
             <h2 className="fw-bold mb-4">My Wishlist</h2>
             <div
                 style={{
@@ -111,7 +116,7 @@ const WishlistPage = () => {
                             </button>
 
                             {/* Cover */}
-                            <Link to={`/books/${item.bookId}`} className="text-decoration-none">
+                            <Link to={bookPath({ bookId: item.bookId, title: item.bookTitle })} className="text-decoration-none">
                                 <div style={{ height: '230px', overflow: 'hidden', background: '#f0f4f8', position: 'relative' }}>
                                     <img
                                         src={item.imageUrl || PLACEHOLDER_IMG}
@@ -174,7 +179,7 @@ const WishlistPage = () => {
 
                             {/* Body */}
                             <div className="card-body p-2 d-flex flex-column" style={{ height: '130px' }}>
-                                <Link to={`/books/${item.bookId}`} className="text-decoration-none text-dark" title={item.bookTitle}>
+                                <Link to={bookPath({ bookId: item.bookId, title: item.bookTitle })} className="text-decoration-none text-dark" title={item.bookTitle}>
                                     <h6
                                         className="fw-semibold mb-1 lh-sm"
                                         style={{

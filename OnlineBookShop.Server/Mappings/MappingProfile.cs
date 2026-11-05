@@ -94,7 +94,8 @@ namespace OnlineBookShop.Server.Application.Mappings
             // --- Review mappings ---
             CreateMap<ReviewCreateDto, Review>();
             CreateMap<Review, ReviewResponseDto>()
-                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.AppUser.UserName));
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.AppUser.UserName))
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
 
 
             // --- VendorEarning mappings ---

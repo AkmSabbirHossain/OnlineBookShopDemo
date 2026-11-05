@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
+import Seo from "../components/common/Seo";
 import AddressSelector from "../components/checkout/AddressSelector";
 import OrderReview from "../components/checkout/OrderReview";
 import CartService from "../services/cart.service";
@@ -15,17 +16,21 @@ import AuthService from "../services/auth.service";
 import type { CartResponseDto } from "../types/cart.types";
 import type { AddressResponseDto } from "../types/address.types";
 import type { OrderResponseDto } from "../types/order.types";
+import type { CouponValidationDto } from "../types/coupon.types";
 import { getDeliveryCharge } from "../utils/pricing";
+import { useLanguage } from "../i18n/language-context";
 
 type Step = "address" | "review" | "success";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [step, setStep] = useState<Step>("address");
   const [cart, setCart] = useState<CartResponseDto | null>(null);
   const [addresses, setAddresses] = useState<AddressResponseDto[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+  const [coupon, setCoupon] = useState<CouponValidationDto | null>(null);
   const [placedOrder, setPlacedOrder] = useState<OrderResponseDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
@@ -78,6 +83,7 @@ export default function CheckoutPage() {
         const order = await OrderService.placeOrder({
             addressId: selectedAddressId,
             items: cart.items.map((i) => ({ bookId: i.bookId, quantity: i.quantity })),
+            couponCode: coupon?.code,
         });
 
         // ── If Order success  cart will be clear  
@@ -109,6 +115,7 @@ export default function CheckoutPage() {
   return (
     <>
       <Navbar />
+      <Seo title={t("seo.checkoutTitle")} noindex />
 
       <div className="bg-light min-vh-100 py-4">
         <div className="container" style={{ maxWidth: "860px" }}>
@@ -241,6 +248,10 @@ export default function CheckoutPage() {
                   selectedAddress={selectedAddress}
                   totalAmount={cart.totalAmount}
                   deliveryCharge={deliveryCharge}
+                  coupon={coupon}
+                  onCouponApplied={setCoupon}
+                  onCouponRemoved={() => setCoupon(null)}
+                  disabled={!isCustomer}
                   placing={placing}
                   onPlaceOrder={handlePlaceOrder}
                   onBack={() => setStep("address")}
@@ -269,6 +280,12 @@ export default function CheckoutPage() {
                       <span className="text-muted">Order ID</span>
                       <strong>#{placedOrder.orderId}</strong>
                     </div>
+                    {placedOrder.discountAmount > 0 && (
+                      <div className="d-flex justify-content-between small mb-1 text-success">
+                        <span>Coupon {placedOrder.couponCode}</span>
+                        <strong>- ৳ {placedOrder.discountAmount.toFixed(2)}</strong>
+                      </div>
+                    )}
                     <div className="d-flex justify-content-between small mb-1">
                       <span className="text-muted">Total</span>
                       <strong className="text-success">

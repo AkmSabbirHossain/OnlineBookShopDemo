@@ -1,0 +1,64 @@
+/* =============================================
+   language-toggle.css — EN / বাংলা switch
+   ============================================= */
+.lt-root {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid #e8edf3;
+    border-radius: 10px;
+    background: #f1f5f9;
+    flex-shrink: 0;
+}
+
+.lt-btn {
+    border: none;
+    background: transparent;
+    padding: 0 10px;
+    height: 30px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: "Sora", "Hind Siliguri", sans-serif;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1;
+    color: #64748b;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.lt-btn:hover:not(.is-active) {
+    color: #e8401c;
+}
+
+.lt-btn.is-active {
+    background: #fff;
+    color: #1b2a4a;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+}
+
+.lt-btn:focus-visible {
+    outline: 2px solid #e8401c;
+    outline-offset: 1px;
+}
+
+.lt-root--drawer {
+    display: flex;
+    width: 100%;
+}
+
+.lt-root--drawer .lt-btn {
+    flex: 1;
+    height: 40px;
+    font-size: 13px;
+}
+
+.lt-root--drawer .lt-btn:last-child {
+    font-family: "Hind Siliguri", "Sora", sans-serif;
+}
+
+@media (max-width: 900px) {
+    .lt-root--bar {
+        display: none;
+    }
+}

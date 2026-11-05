@@ -31,6 +31,8 @@ namespace OnlineBookShop.Server.Models.DbContext
         public DbSet<BookImage> BookImages { get; set; } = null!;
         public DbSet<Author> Authors { get; set; } = null!;
         public DbSet<Publisher> Publishers { get; set; } = null!;
+        public DbSet<Coupon> Coupons { get; set; } = null!;
+        public DbSet<CouponRedemption> CouponRedemptions { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -277,6 +279,77 @@ namespace OnlineBookShop.Server.Models.DbContext
                       .WithMany(a => a.Orders)
                       .HasForeignKey(o => o.AddressId)
                       .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(o => o.Coupon)
+                      .WithMany()
+                      .HasForeignKey(o => o.CouponId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.Property(o => o.CouponCode).HasMaxLength(40);
+
+                entity.HasIndex(o => o.CouponId);
+                entity.HasIndex(o => o.OrderDate);
+                entity.HasIndex(o => o.Status);
+            });
+
+            // ============================
+            // COUPON
+            // ============================
+            modelBuilder.Entity<Coupon>(entity =>
+            {
+                entity.HasKey(c => c.CouponId);
+
+                entity.Property(c => c.Code)
+                      .HasMaxLength(40)
+                      .IsRequired();
+
+                entity.Property(c => c.Description)
+                      .HasMaxLength(200);
+
+                entity.Property(c => c.DiscountType)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+
+                entity.Property(c => c.PerUserLimit)
+                      .HasDefaultValue(1);
+
+                entity.Property(c => c.RedeemedCount)
+                      .HasDefaultValue(0);
+
+                entity.Property(c => c.IsActive)
+                      .HasDefaultValue(true);
+
+                entity.Property(c => c.CreatedAt)
+                      .HasDefaultValueSql("GETUTCDATE()");
+
+                entity.HasIndex(c => c.Code).IsUnique();
+                entity.HasIndex(c => c.IsActive);
+            });
+
+            modelBuilder.Entity<CouponRedemption>(entity =>
+            {
+                entity.HasKey(r => r.CouponRedemptionId);
+
+                entity.Property(r => r.RedeemedAt)
+                      .HasDefaultValueSql("GETUTCDATE()");
+
+                entity.HasOne(r => r.Coupon)
+                      .WithMany(c => c.Redemptions)
+                      .HasForeignKey(r => r.CouponId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.AppUser)
+                      .WithMany()
+                      .HasForeignKey(r => r.UserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(r => r.Order)
+                      .WithMany(o => o.CouponRedemptions)
+                      .HasForeignKey(r => r.OrderId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(r => new { r.CouponId, r.OrderId }).IsUnique();
+                entity.HasIndex(r => new { r.CouponId, r.UserId });
             });
 
 
@@ -362,6 +435,9 @@ namespace OnlineBookShop.Server.Models.DbContext
             {
                 entity.HasKey(r => r.ReviewId);
                 entity.HasIndex(r => new { r.BookId, r.UserId }).IsUnique();
+                entity.Property(r => r.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
                 entity.ToTable(tb => tb.HasCheckConstraint(
                     "CK_Review_Rating",
                     "[Rating] BETWEEN 1 AND 5"

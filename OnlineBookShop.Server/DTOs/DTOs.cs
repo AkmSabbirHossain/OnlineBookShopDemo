@@ -386,6 +386,9 @@ namespace OnlineBookShop.Server.DTOs
 
         [Required, MinLength(1)]
         public List<OrderItemCreateDto> Items { get; set; } = new();
+
+        [MaxLength(40)]
+        public string? CouponCode { get; set; }
     }
 
     public class OrderItemCreateDto
@@ -404,7 +407,10 @@ namespace OnlineBookShop.Server.DTOs
         public int OrderId { get; set; }
         public int UserId { get; set; }
         public int AddressId { get; set; }
+        public decimal SubtotalAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
         public decimal TotalAmount { get; set; }
+        public string? CouponCode { get; set; }
         public OrderStatus Status { get; set; }
         public DateTime OrderDate { get; set; }
         public List<OrderItemResponseDto> Items { get; set; } = new();
@@ -450,7 +456,109 @@ namespace OnlineBookShop.Server.DTOs
         public int Rating { get; set; }
         public string? Comment { get; set; }
         public bool IsVerifiedPurchase { get; set; }
+        public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+    }
+
+    public class ReviewModerationDto
+    {
+        public int ReviewId { get; set; }
+        public int BookId { get; set; }
+        public string BookTitle { get; set; } = string.Empty;
+        public int UserId { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public int Rating { get; set; }
+        public string? Comment { get; set; }
+        public bool IsVerifiedPurchase { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class ReviewStatusUpdateDto
+    {
+        [Required]
+        [RegularExpression("^(Pending|Approved|Hidden)$", ErrorMessage = "Status must be Pending, Approved or Hidden.")]
+        public string Status { get; set; } = null!;
+    }
+
+    // =====================================
+    // COUPON
+    // =====================================
+    public class CouponApplyDto
+    {
+        [Required, MaxLength(40)]
+        public string Code { get; set; } = null!;
+    }
+
+    public class CouponUpsertDto
+    {
+        [Required, MaxLength(40)]
+        [RegularExpression("^[A-Za-z0-9_-]{2,40}$",
+            ErrorMessage = "Coupon code must be 2-40 characters using letters, numbers, hyphen or underscore.")]
+        public string Code { get; set; } = null!;
+
+        [MaxLength(200)]
+        public string? Description { get; set; }
+
+        [Required]
+        [RegularExpression("^(Percentage|FixedAmount)$",
+            ErrorMessage = "Discount type must be Percentage or FixedAmount.")]
+        public string DiscountType { get; set; } = null!;
+
+        [Range(0.01, 1000000)]
+        public decimal DiscountValue { get; set; }
+
+        [Range(0, 10000000)]
+        public decimal MinimumOrderAmount { get; set; }
+
+        [Range(0.01, 10000000)]
+        public decimal? MaximumDiscountAmount { get; set; }
+
+        [Range(1, int.MaxValue)]
+        public int? UsageLimit { get; set; }
+
+        [Range(1, 1000)]
+        public int PerUserLimit { get; set; } = 1;
+
+        public DateTime? StartsAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class CouponStatusUpdateDto
+    {
+        public bool IsActive { get; set; }
+    }
+
+    public class CouponResponseDto
+    {
+        public int CouponId { get; set; }
+        public string Code { get; set; } = null!;
+        public string? Description { get; set; }
+        public string DiscountType { get; set; } = null!;
+        public decimal DiscountValue { get; set; }
+        public decimal MinimumOrderAmount { get; set; }
+        public decimal? MaximumDiscountAmount { get; set; }
+        public int? UsageLimit { get; set; }
+        public int PerUserLimit { get; set; }
+        public int RedeemedCount { get; set; }
+        public DateTime? StartsAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public bool IsActive { get; set; }
+        public string Status { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    public class CouponValidationDto
+    {
+        public int CouponId { get; set; }
+        public string Code { get; set; } = null!;
+        public string? Description { get; set; }
+        public decimal Subtotal { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public int PerUserLimit { get; set; }
     }
 
     // =====================================
@@ -730,5 +838,60 @@ namespace OnlineBookShop.Server.DTOs
         public string Title { get; set; } = null!;
         public string Message { get; set; } = null!;
         public string Target { get; set; } = "All"; 
+    }
+
+    // =====================================
+    // SALES REPORT (ADMIN)
+    // =====================================
+    public class SalesReportDto
+    {
+        public DateTime From { get; set; }
+        public DateTime To { get; set; }
+        public int OrdersCount { get; set; }
+        public int CancelledOrdersCount { get; set; }
+        public int ItemsSold { get; set; }
+        public decimal SubtotalSales { get; set; }
+        public decimal TotalDiscount { get; set; }
+        public decimal GrossSales { get; set; }
+        public decimal AverageOrderValue { get; set; }
+        public List<DailySalesDto> Daily { get; set; } = new();
+        public List<TopBookSalesDto> TopBooks { get; set; } = new();
+        public List<TopVendorSalesDto> TopVendors { get; set; } = new();
+        public List<OrderStatusBreakdownDto> StatusBreakdown { get; set; } = new();
+    }
+
+    public class DailySalesDto
+    {
+        public DateTime Date { get; set; }
+        public int Orders { get; set; }
+        public int Items { get; set; }
+        public decimal Revenue { get; set; }
+        public decimal Discount { get; set; }
+    }
+
+    public class TopBookSalesDto
+    {
+        public int BookId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Author { get; set; }
+        public string? Vendor { get; set; }
+        public int QuantitySold { get; set; }
+        public int OrdersCount { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public class TopVendorSalesDto
+    {
+        public int VendorId { get; set; }
+        public string ShopName { get; set; } = string.Empty;
+        public int QuantitySold { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public class OrderStatusBreakdownDto
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Revenue { get; set; }
     }
 }

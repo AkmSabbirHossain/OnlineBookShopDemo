@@ -4,12 +4,18 @@
 
 import type { CartItemResponseDto } from "../../types/cart.types";
 import type { AddressResponseDto } from "../../types/address.types";
+import type { CouponValidationDto } from "../../types/coupon.types";
+import CouponBox from "./CouponBox";
 
 interface Props {
     items: CartItemResponseDto[];
     selectedAddress: AddressResponseDto | null;
     totalAmount: number;
     deliveryCharge: number;
+    coupon: CouponValidationDto | null;
+    onCouponApplied: (coupon: CouponValidationDto) => void;
+    onCouponRemoved: () => void;
+    disabled?: boolean;
     placing: boolean;
     onPlaceOrder: () => void;
     onBack: () => void;
@@ -20,11 +26,16 @@ export default function OrderReview({
     selectedAddress,
     totalAmount,
     deliveryCharge,
+    coupon,
+    onCouponApplied,
+    onCouponRemoved,
+    disabled = false,
     placing,
     onPlaceOrder,
     onBack,
 }: Props) {
-    const grandTotal = totalAmount + deliveryCharge;
+    const discount = coupon?.discountAmount ?? 0;
+    const grandTotal = Math.max(0, totalAmount - discount) + deliveryCharge;
 
     return (
         <div>
@@ -81,6 +92,25 @@ export default function OrderReview({
                 </div>
             </div>
 
+            {/* Promo code */}
+            {disabled ? (
+                coupon && (
+                    <div className="alert alert-success d-flex align-items-center gap-2 flex-wrap mb-4 py-2 px-3">
+                        <i className="bi bi-ticket-perforated-fill fs-5"></i>
+                        <div className="small">
+                            <strong>{coupon.code}</strong> applied — you save ৳ {discount.toFixed(2)}
+                        </div>
+                    </div>
+                )
+            ) : (
+                <CouponBox
+                    applied={coupon}
+                    onApplied={onCouponApplied}
+                    onRemove={onCouponRemoved}
+                    disabled={placing}
+                />
+            )}
+
             {/* Price Summary */}
             <div className="card border-0 shadow-sm rounded-3 mb-4">
                 <div className="card-body p-3">
@@ -88,6 +118,12 @@ export default function OrderReview({
                         <span className="text-muted">Subtotal</span>
                         <span>৳ {totalAmount.toFixed(2)}</span>
                     </div>
+                    {discount > 0 && (
+                        <div className="d-flex justify-content-between mb-2 small text-success">
+                            <span>Coupon discount{coupon ? ` (${coupon.code})` : ""}</span>
+                            <span>- ৳ {discount.toFixed(2)}</span>
+                        </div>
+                    )}
                     <div className="d-flex justify-content-between mb-2 small">
                         <span className="text-muted">Delivery</span>
                         {deliveryCharge === 0

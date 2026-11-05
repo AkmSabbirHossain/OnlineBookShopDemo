@@ -1,5 +1,5 @@
 // =============================================
-// AdminStats.tsx — Summary stat cards
+// AdminStats.tsx â€” Summary stat cards
 // =============================================
 
 interface Props {
@@ -7,6 +7,9 @@ interface Props {
     totalVendors: number;
     pendingVendors: number;
     totalCategories: number;
+    totalCoupons: number;
+    totalBanners: number;
+    totalCreators: number;
 }
 
 export default function AdminStats({
@@ -14,58 +17,70 @@ export default function AdminStats({
     totalVendors,
     pendingVendors,
     totalCategories,
+    totalCoupons,
+    totalBanners,
+    totalCreators,
 }: Props) {
     const stats = [
         {
-            label: "Total Books",
+            label: "Books in catalog",
             value: totalBooks,
-            icon: "bi-book",
-            color: "primary",
+            icon: "bi-book-half",
+            tone: "adm-tone-blue",
         },
         {
-            label: "Total Vendors",
+            label: "Total vendors",
             value: totalVendors,
-            icon: "bi-shop",
-            color: "success",
+            icon: "bi-shop-window",
+            tone: "adm-tone-green",
         },
         {
-            label: "Pending Approval",
+            label: "Pending approvals",
             value: pendingVendors,
             icon: "bi-hourglass-split",
-            color: pendingVendors > 0 ? "warning" : "secondary",
+            tone: "adm-tone-amber",
         },
         {
             label: "Categories",
             value: totalCategories,
-            icon: "bi-tags",
-            color: "info",
+            icon: "bi-tags-fill",
+            tone: "adm-tone-violet",
+        },
+        {
+            label: "Coupons",
+            value: totalCoupons,
+            icon: "bi-ticket-perforated-fill",
+            tone: "adm-tone-rose",
+        },
+        {
+            label: "Writers & publishers",
+            value: totalCreators,
+            icon: "bi-people-fill",
+            tone: "adm-tone-sky",
         },
     ];
 
     return (
         <div className="row g-3 mb-4">
             {stats.map((s) => (
-                <div key={s.label} className="col-6 col-md-3">
-                    <div
-                        className={`card border-0 shadow-sm rounded-3 border-start border-4 border-${s.color}`}
-                    >
-                        <div className="card-body py-3 px-3">
-                            <div className="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <p className="text-muted small mb-1">{s.label}</p>
-                                    <h4 className="fw-bold mb-0">{s.value}</h4>
-                                </div>
-                                <div
-                                    className={`rounded-circle bg-${s.color} bg-opacity-10 d-flex align-items-center justify-content-center`}
-                                    style={{ width: "46px", height: "46px" }}
-                                >
-                                    <i className={`bi ${s.icon} text-${s.color} fs-5`}></i>
-                                </div>
-                            </div>
+                <div key={s.label} className="col-6 col-lg-4">
+                    <div className="adm-stat">
+                        <span className={`adm-stat-icon ${s.tone}`}>
+                            <i className={`bi ${s.icon}`} aria-hidden="true" />
+                        </span>
+                        <div className="adm-stat-info">
+                            <p className="adm-stat-value mb-0">{s.value}</p>
+                            <p className="adm-stat-label mb-0">{s.label}</p>
                         </div>
                     </div>
                 </div>
             ))}
+            <div className="col-12">
+                <p className="adm-stat-note mb-0">
+                    <i className="bi bi-images me-1" aria-hidden="true" />
+                    {totalBanners} banner{totalBanners === 1 ? "" : "s"} currently configured
+                </p>
+            </div>
         </div>
     );
 }

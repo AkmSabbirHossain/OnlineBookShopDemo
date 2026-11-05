@@ -13,6 +13,7 @@ namespace OnlineBookShop.Server.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IStockHistoryService _stockHistoryService;
         private readonly INotificationService _notificationService;
+        private readonly ICouponService _couponService;
         private readonly IMapper _mapper;
         private readonly IMemoryCache _cache;
 
@@ -20,12 +21,14 @@ namespace OnlineBookShop.Server.Application.Services
             IUnitOfWork unitOfWork,
             IStockHistoryService stockHistoryService,
             INotificationService notificationService,
+            ICouponService couponService,
             IMapper mapper,
             IMemoryCache cache)
         {
             _unitOfWork = unitOfWork;
             _stockHistoryService = stockHistoryService;
             _notificationService = notificationService;
+            _couponService = couponService;
             _mapper = mapper;
             _cache = cache;
         }
@@ -60,6 +63,7 @@ namespace OnlineBookShop.Server.Application.Services
 
                     var orderItems = new List<OrderItem>();
                     var stockChanges = new List<(int BookId, int OldStock, int NewStock, int Quantity, int LowStockThreshold, string Title, int VendorUserId)>();
+                    var subtotal = 0m;
 
                     foreach (var itemDto in dto.Items)
                     {
@@ -101,7 +105,7 @@ namespace OnlineBookShop.Server.Application.Services
                         };
 
                         orderItems.Add(orderItem);
-                        order.TotalAmount += orderItem.Quantity * orderItem.Price;
+                        subtotal += orderItem.Quantity * orderItem.Price;
                         stockChanges.Add((
                             book.BookId,
                             book.Stock,
@@ -112,9 +116,27 @@ namespace OnlineBookShop.Server.Application.Services
                             book.Vendor.UserId));
                     }
 
+                    order.SubtotalAmount = subtotal;
+                    order.TotalAmount = subtotal;
+
+                    CouponValidationDto? appliedCoupon = null;
+                    if (!string.IsNullOrWhiteSpace(dto.CouponCode))
+                    {
+                        appliedCoupon = await _couponService.ValidateForOrderAsync(
+                            dto.CouponCode, userId, subtotal);
+
+                        order.CouponId = appliedCoupon.CouponId;
+                        order.CouponCode = appliedCoupon.Code;
+                        order.DiscountAmount = appliedCoupon.DiscountAmount;
+                        order.TotalAmount = appliedCoupon.TotalAmount;
+                    }
+
                     order.OrderItems = orderItems;
                     _unitOfWork.Repository<Order>().Add(order);
                     await _unitOfWork.SaveChangesAsync();
+
+                    if (appliedCoupon != null)
+                        await _couponService.RedeemAsync(appliedCoupon, userId, order.OrderId);
 
                     foreach (var change in stockChanges)
                     {
@@ -151,7 +173,9 @@ namespace OnlineBookShop.Server.Application.Services
                 {
                     UserId = userId,
                     Title = "অর্ডার নিশ্চিত হয়েছে ✅",
-                    Message = $"আপনার অর্ডার #{order.OrderId} সফলভাবে placed হয়েছে। মোট: ৳{order.TotalAmount:F0}"
+                    Message = order.DiscountAmount > 0
+                        ? $"আপনার অর্ডার #{order.OrderId} সফলভাবে placed হয়েছে। Coupon {order.CouponCode}: ৳{order.DiscountAmount:F0} ছাড়। মোট: ৳{order.TotalAmount:F0}"
+                        : $"আপনার অর্ডার #{order.OrderId} সফলভাবে placed হয়েছে। মোট: ৳{order.TotalAmount:F0}"
                 });
             }
             catch

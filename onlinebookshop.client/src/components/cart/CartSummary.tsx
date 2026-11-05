@@ -85,6 +85,13 @@ export default function CartSummary({ totalAmount, itemCount, onClearCart, clear
                     </div>
                 </div>
 
+                {itemCount > 0 && (
+                    <p className="cp-free-hint mb-2">
+                        <i className="bi bi-ticket-perforated me-1" aria-hidden="true"></i>
+                        Have a promo code? Apply it at checkout.
+                    </p>
+                )}
+
                 <button
                     type="button"
                     className="cp-cta"

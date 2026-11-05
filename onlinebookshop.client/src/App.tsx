@@ -4,7 +4,7 @@
 // App.tsx —  routing setup
 // =============================================
 
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
 // ── Pages ──
@@ -25,6 +25,8 @@ import CreatorsPage from "./pages/CreatorsPage";
 import CreatorProfilePage from "./pages/CreatorProfilePage";
 import ProfilePage from "./pages/ProfilePage";
 import WishlistPage from "./pages/WishlistPage";
+import Seo from "./components/common/Seo";
+import { useLanguage } from "./i18n/language-context";
 import { NotificationProvider } from "./context/NotificationContext";
 // ── Services ──
 import AuthService from "./services/auth.service";
@@ -64,18 +66,29 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
 }
 
 function NotFoundPage() {
+    const { t } = useLanguage();
     return (
-        <div className="container mt-5 text-center">
-            <h1 className="display-1 fw-bold text-muted">404</h1>
-            <p className="lead">Does not found this Page</p>
-            <a href="/" className="btn btn-primary">Goback to Home </a>
-        </div>
+        <>
+            <Seo
+                title={t("seo.notFoundTitle")}
+                description={t("seo.notFoundDescription")}
+                noindex
+            />
+            <div className="container mt-5 text-center py-5">
+                <h1 className="display-1 fw-bold text-muted">404</h1>
+                <p className="lead">{t("seo.notFoundDescription")}</p>
+                <Link to="/" className="btn btn-primary">
+                    {t("footer.home")}
+                </Link>
+            </div>
+        </>
     );
 }
 
 //logout
 function LogoutPage() {
     const navigate = useNavigate();
+    const { t } = useLanguage();
     useEffect(() => {
         AuthService.logout();
         navigate("/auth", { replace: true });
@@ -85,7 +98,7 @@ function LogoutPage() {
         <div className="min-vh-100 d-flex align-items-center justify-content-center">
             <div className="text-center">
                 <div className="spinner-border text-primary mb-3" />
-                <p className="text-muted">Logging out...</p>
+                <p className="text-muted">{t("nav.logout")}</p>
             </div>
         </div>
     );
@@ -116,6 +129,8 @@ export default function App() {
 
                         {/* ── Customer Routes ── */}
                         <Route path="/" element={<HomePage />} />
+                        <Route path="/books" element={<HomePage />} />
+                        <Route path="/category/:slug" element={<HomePage />} />
 
                         <Route
                             path="/cart"
@@ -153,11 +168,11 @@ export default function App() {
                             }
                         />
 
-                        <Route path="/books/:id" element={<BookDetailPage />} />
+                        <Route path="/books/:id/:slug?" element={<BookDetailPage />} />
                         <Route path="/authors" element={<CreatorsPage kind="author" />} />
-                        <Route path="/authors/:id" element={<CreatorProfilePage kind="author" />} />
+                        <Route path="/authors/:id/:slug?" element={<CreatorProfilePage kind="author" />} />
                         <Route path="/publishers" element={<CreatorsPage kind="publisher" />} />
-                        <Route path="/publishers/:id" element={<CreatorProfilePage kind="publisher" />} />
+                        <Route path="/publishers/:id/:slug?" element={<CreatorProfilePage kind="publisher" />} />
 
                         {/* ── Vendor Routes ── */}
                         <Route

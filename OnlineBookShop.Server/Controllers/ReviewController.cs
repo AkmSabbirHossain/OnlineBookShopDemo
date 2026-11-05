@@ -39,13 +39,51 @@ namespace OnlineBookShop.Server.Controllers
             }
         }
 
-        // GET: api/Review/book/{bookId} — public so signed-out visitors can read reviews
+        // GET: api/Review/book/{bookId} — public so signed-out visitors can read approved reviews.
+        // A signed-in owner also sees their own pending/hidden review so moderation state is clear.
         [HttpGet("book/{bookId}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetBookReviews(int bookId)
         {
-            var reviews = await _reviewService.GetBookReviewsAsync(bookId);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            int? currentUserId = int.TryParse(userIdClaim, out var userId) ? userId : null;
+
+            var reviews = await _reviewService.GetBookReviewsAsync(bookId, currentUserId);
             return Ok(reviews);
+        }
+
+        // GET: api/Review/manage?status=Pending — admin moderation queue
+        [HttpGet("manage")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetForAdmin([FromQuery] string? status)
+        {
+            try
+            {
+                return Ok(await _reviewService.GetForAdminAsync(status));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // PATCH: api/Review/{reviewId}/status — approve or hide a review
+        [HttpPatch("{reviewId:int}/status")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateStatus(int reviewId, [FromBody] ReviewStatusUpdateDto dto)
+        {
+            try
+            {
+                return Ok(await _reviewService.SetStatusAsync(reviewId, dto.Status));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // DELETE: api/Review/{reviewId}

@@ -138,6 +138,16 @@ function ReviewCard({
                                     <i className="bi bi-patch-check-fill me-1"></i>Verified Purchase
                                 </span>
                             )}
+                            {review.status === "Pending" && (
+                                <span className="badge bg-warning-subtle text-warning-emphasis ms-2" style={{ fontSize: "10px" }}>
+                                    <i className="bi bi-hourglass-split me-1"></i>Awaiting approval
+                                </span>
+                            )}
+                            {review.status === "Hidden" && (
+                                <span className="badge bg-secondary-subtle text-secondary-emphasis ms-2" style={{ fontSize: "10px" }}>
+                                    <i className="bi bi-eye-slash me-1"></i>Hidden by admin
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -183,8 +193,12 @@ export default function ReviewSection({
     const [comment, setComment] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState("");
+    const [submitted, setSubmitted] = useState(false);
     const [deleteError, setDeleteError] = useState("");
     const [deleting, setDeleting] = useState<number | null>(null);
+
+    // Only approved reviews count toward the public rating summary.
+    const approvedReviews = reviews.filter((r) => r.status === "Approved");
 
     const handleSubmit = async () => {
         if (rating === 0) {
@@ -202,6 +216,7 @@ export default function ReviewSection({
             onReviewAdded(review);
             setRating(0);
             setComment("");
+            setSubmitted(true);
         } catch (err: unknown) {
             if (axios.isAxiosError(err)) {
                 setSubmitError(err.response?.data?.message || "Failed to submit review.");
@@ -239,7 +254,14 @@ export default function ReviewSection({
             </h5>
 
             {/* Rating Summary */}
-            <RatingSummary reviews={reviews} />
+            <RatingSummary reviews={approvedReviews} />
+
+            {submitted && (
+                <div className="alert alert-info d-flex align-items-center gap-2 mb-4">
+                    <i className="bi bi-hourglass-split"></i>
+                    Thanks! Your review is waiting for admin approval.
+                </div>
+            )}
 
             {/* Add Review Form */}
             {isLoggedIn && !hasReviewed && (
@@ -304,7 +326,6 @@ export default function ReviewSection({
                     You have already reviewed this book.
                 </div>
             )}
-
             {/* Not logged in */}
             {!isLoggedIn && (
                 <div className="alert alert-light border mb-4 d-flex align-items-center gap-2">

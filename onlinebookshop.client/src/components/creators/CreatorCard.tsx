@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../../i18n/language-context";
+import { creatorPath } from "../../utils/slug";
 import "./creator.css";
 
 export type CreatorKind = "author" | "publisher";
@@ -30,15 +32,24 @@ export default function CreatorCard({
     bookCount,
     variant = "grid",
 }: Props) {
+    const { t, formatNumber } = useLanguage();
     const [imageBroken, setImageBroken] = useState(false);
-    const href = kind === "author" ? `/authors/${id}` : `/publishers/${id}`;
-    const roleLabel = kind === "author" ? "Writer" : "Publisher";
+    const href = creatorPath(kind, id, name);
+    const roleLabel = t(kind === "author" ? "creator.writer" : "creator.publisher");
+    const countLabel =
+        bookCount === 1
+            ? t("common.bookOne")
+            : t("common.bookMany", { count: formatNumber(bookCount) });
 
     return (
         <Link
             to={href}
             className={`cr-card${variant === "strip" ? " cr-card--strip" : ""}`}
-            aria-label={`${roleLabel} ${name}, ${bookCount} book${bookCount === 1 ? "" : "s"}`}
+            aria-label={t("creator.aria", {
+                role: roleLabel,
+                name,
+                count: formatNumber(bookCount),
+            })}
         >
             <span className="cr-card-arrow" aria-hidden="true">
                 <i className="bi bi-arrow-up-right" />
@@ -61,7 +72,7 @@ export default function CreatorCard({
             {bio && <p className="cr-card-bio">{bio}</p>}
             <span className="cr-card-count">
                 <i className="bi bi-journal-bookmark" aria-hidden="true" />
-                {bookCount} {bookCount === 1 ? "book" : "books"}
+                {countLabel}
             </span>
         </Link>
     );

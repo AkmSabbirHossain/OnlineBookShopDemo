@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FocusEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import axios from "axios";
 import BookService from "../../services/book.service";
+import { useLanguage } from "../../i18n/language-context";
 import type { BookResponseDto } from "../../types/book.types";
 
 interface Props {
@@ -15,15 +16,13 @@ interface Props {
     placeholder: string;
     onChange: (value: string) => void;
     onSearch: (term: string) => void;
-    onSelectBook: (bookId: number) => void;
+    onSelectBook: (book: BookResponseDto) => void;
 }
 
 const MIN_QUERY_LENGTH = 2;
 const SUGGESTION_LIMIT = 6;
 const DEBOUNCE_MS = 250;
 const FALLBACK_IMG = "https://placehold.co/80x104/f1f5f9/94a3b8?text=Book";
-
-const currency = new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 });
 
 const SearchIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
@@ -82,6 +81,7 @@ export default function BookSearchBox({
     onSearch,
     onSelectBook,
 }: Props) {
+    const { t, formatNumber } = useLanguage();
     const classes = CLASSES[variant];
     const rootRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -106,43 +106,47 @@ export default function BookSearchBox({
 
     useEffect(() => {
         if (!focused || term.length < MIN_QUERY_LENGTH) {
-            setSuggestions([]);
-            setError("");
-            setLoading(false);
-            return;
+            const timer = setTimeout(() => {
+                setSuggestions([]);
+                setError("");
+                setLoading(false);
+                setOpen(false);
+            }, 0);
+            return () => clearTimeout(timer);
         }
 
         const controller = new AbortController();
         let cancelled = false;
 
-        setLoading(true);
-        setError("");
-
-        BookService.searchBooks(
-            { search: term, page: 1, pageSize: SUGGESTION_LIMIT, sortBy: "popular" },
-            controller.signal
-        )
-            .then((result) => {
+        const run = async () => {
+            setLoading(true);
+            setError("");
+            try {
+                const result = await BookService.searchBooks(
+                    { search: term, page: 1, pageSize: SUGGESTION_LIMIT, sortBy: "popular" },
+                    controller.signal
+                );
                 if (cancelled) return;
                 setSuggestions(result.items);
                 setActiveIndex(-1);
                 setOpen(!dismissedRef.current);
-            })
-            .catch((err: unknown) => {
+            } catch (err: unknown) {
                 if (cancelled || axios.isCancel(err)) return;
                 setSuggestions([]);
-                setError("Suggestions are unavailable right now.");
+                setError(t("search.unavailable"));
                 setOpen(!dismissedRef.current);
-            })
-            .finally(() => {
+            } finally {
                 if (!cancelled) setLoading(false);
-            });
+            }
+        };
+
+        void run();
 
         return () => {
             cancelled = true;
             controller.abort();
         };
-    }, [term, focused]);
+    }, [term, focused, t]);
 
     useEffect(() => {
         const handler = (event: MouseEvent) => {
@@ -182,11 +186,11 @@ export default function BookSearchBox({
         inputRef.current?.blur();
     };
 
-    const selectBook = (bookId: number) => {
+    const selectBook = (book: BookResponseDto) => {
         dismissedRef.current = true;
         setOpen(false);
         setActiveIndex(-1);
-        onSelectBook(bookId);
+        onSelectBook(book);
     };
 
     const handleClear = () => {
@@ -227,7 +231,7 @@ export default function BookSearchBox({
             setActiveIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
         } else if (event.key === "Enter" && activeIndex >= 0 && suggestions[activeIndex]) {
             event.preventDefault();
-            selectBook(suggestions[activeIndex].bookId);
+            selectBook(suggestions[activeIndex]);
         }
     };
 
@@ -250,7 +254,7 @@ export default function BookSearchBox({
                         onKeyDown={handleKeyDown}
                         autoComplete="off"
                         role="combobox"
-                        aria-label="Search books"
+                        aria-label={t("search.label")}
                         aria-autocomplete="list"
                         aria-expanded={open}
                         aria-controls={listboxId}
@@ -264,23 +268,23 @@ export default function BookSearchBox({
                             className={classes.clear}
                             onClick={handleClear}
                             tabIndex={-1}
-                            aria-label="Clear search"
+                            aria-label={t("search.clear")}
                         >
                             <XIcon />
                         </button>
                     ) : null}
                 </div>
-                <button className={classes.button} type="submit" aria-label="Search">
+                <button className={classes.button} type="submit" aria-label={t("search.action")}>
                     <SearchIcon />
-                    {variant === "desktop" && <span>Search</span>}
+                    {variant === "desktop" && <span>{t("search.action")}</span>}
                 </button>
 
                 {open && (
-                    <div className="bsb-panel" id={listboxId} role="listbox" aria-label="Book suggestions">
+                    <div className="bsb-panel" id={listboxId} role="listbox" aria-label={t("search.suggestions")}>
                         {loading && suggestions.length === 0 ? (
                             <div className="bsb-state">
                                 <span className="bsb-spinner" aria-hidden="true" />
-                                Searching books…
+                                {t("search.searching")}
                             </div>
                         ) : error ? (
                             <div className="bsb-state bsb-error">
@@ -290,19 +294,19 @@ export default function BookSearchBox({
                         ) : suggestions.length === 0 ? (
                             <div className="bsb-state bsb-empty">
                                 <i className="bi bi-search"></i>
-                                <span>No books found for “{typedTerm}”.</span>
+                                <span>{t("search.none", { query: typedTerm })}</span>
                                 <button
                                     type="button"
                                     className="bsb-inline-action"
                                     onMouseDown={(event) => event.preventDefault()}
                                     onClick={submitSearch}
                                 >
-                                    Search anyway
+                                    {t("search.searchAnyway")}
                                 </button>
                             </div>
                         ) : (
                             <>
-                                <div className="bsb-head">Books</div>
+                                <div className="bsb-head">{t("search.heading")}</div>
                                 <ul className="bsb-list">
                                     {suggestions.map((book, index) => {
                                         const price = priceOf(book);
@@ -316,7 +320,7 @@ export default function BookSearchBox({
                                                 className={`bsb-item${activeIndex === index ? " is-active" : ""}`}
                                                 onMouseDown={(event) => event.preventDefault()}
                                                 onMouseEnter={() => setActiveIndex(index)}
-                                                onClick={() => selectBook(book.bookId)}
+                                                onClick={() => selectBook(book)}
                                             >
                                                 <img
                                                     className="bsb-thumb"
@@ -339,9 +343,9 @@ export default function BookSearchBox({
                                                     </span>
                                                 </div>
                                                 <div className="bsb-side">
-                                                    <span className="bsb-price">৳{currency.format(price)}</span>
-                                                    {discounted && <span className="bsb-old">৳{currency.format(book.price)}</span>}
-                                                    {book.stock === 0 && <span className="bsb-out">Out of stock</span>}
+                                                    <span className="bsb-price">৳{formatNumber(price)}</span>
+                                                    {discounted && <span className="bsb-old">৳{formatNumber(book.price)}</span>}
+                                                    {book.stock === 0 && <span className="bsb-out">{t("search.outOfStock")}</span>}
                                                 </div>
                                             </li>
                                         );
@@ -353,7 +357,7 @@ export default function BookSearchBox({
                                     onMouseDown={(event) => event.preventDefault()}
                                     onClick={submitSearch}
                                 >
-                                    <span>View all results for “{typedTerm}”</span>
+                                    <span>{t("search.viewAll", { query: typedTerm })}</span>
                                     <i className="bi bi-arrow-right"></i>
                                 </button>
                             </>

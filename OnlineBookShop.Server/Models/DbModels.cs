@@ -27,6 +27,19 @@ namespace OnlineBookShop.Server.Models
         Cancelled 
     }
 
+    public enum CouponDiscountType
+    {
+        Percentage = 1,
+        FixedAmount = 2
+    }
+
+    public enum ReviewStatus
+    {
+        Pending = 0,
+        Approved = 1,
+        Hidden = 2
+    }
+
     // =====================================
     // APP USER (Identity + custom fields)
     // =====================================
@@ -294,14 +307,21 @@ namespace OnlineBookShop.Server.Models
         public int OrderId { get; set; }
         public int UserId { get; set; }          
         public int AddressId { get; set; }
+        public decimal SubtotalAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
         public decimal TotalAmount { get; set; }
+        public int? CouponId { get; set; }
+        [MaxLength(40)]
+        public string? CouponCode { get; set; }
         public OrderStatus Status { get; set; } = OrderStatus.Pending;
         public DateTime OrderDate { get; set; } = DateTime.UtcNow;
 
         public AppUser AppUser { get; set; } = null!;
         public Address Address { get; set; } = null!;
+        public Coupon? Coupon { get; set; }
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
         public ICollection<OrderStatusHistory> StatusHistories { get; set; } = new List<OrderStatusHistory>();
+        public ICollection<CouponRedemption> CouponRedemptions { get; set; } = new List<CouponRedemption>();
         public Payment? Payment { get; set; }
     }
 
@@ -324,6 +344,53 @@ namespace OnlineBookShop.Server.Models
         public string Method { get; set; } = "COD";
         public string Status { get; set; } = "Pending";
         public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
+        public Order Order { get; set; } = null!;
+    }
+
+    // =====================================
+    // COUPONS
+    // =====================================
+    public class Coupon
+    {
+        public int CouponId { get; set; }
+
+        [Required]
+        [MaxLength(40)]
+        public string Code { get; set; } = null!;
+
+        [MaxLength(200)]
+        public string? Description { get; set; }
+
+        public CouponDiscountType DiscountType { get; set; }
+        public decimal DiscountValue { get; set; }
+        public decimal MinimumOrderAmount { get; set; }
+        public decimal? MaximumDiscountAmount { get; set; }
+
+        public int? UsageLimit { get; set; }
+        public int PerUserLimit { get; set; } = 1;
+        public int RedeemedCount { get; set; }
+
+        public DateTime? StartsAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public bool IsActive { get; set; } = true;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedAt { get; set; }
+
+        public ICollection<CouponRedemption> Redemptions { get; set; } = new List<CouponRedemption>();
+    }
+
+    public class CouponRedemption
+    {
+        public int CouponRedemptionId { get; set; }
+        public int CouponId { get; set; }
+        public int UserId { get; set; }
+        public int OrderId { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public DateTime RedeemedAt { get; set; } = DateTime.UtcNow;
+
+        public Coupon Coupon { get; set; } = null!;
+        public AppUser AppUser { get; set; } = null!;
         public Order Order { get; set; } = null!;
     }
 
@@ -359,6 +426,7 @@ namespace OnlineBookShop.Server.Models
         public int Rating { get; set; }
         public string? Comment { get; set; }
         public bool IsVerifiedPurchase { get; set; }
+        public ReviewStatus Status { get; set; } = ReviewStatus.Pending;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public Book Book { get; set; } = null!;
         public AppUser AppUser { get; set; } = null!;

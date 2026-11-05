@@ -6,12 +6,15 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
+import Seo from "../components/common/Seo";
 import CartItemComponent from "../components/cart/CartItem";
 import CartSummary from "../components/cart/CartSummary";
 import CartService from "../services/cart.service";
+import { useLanguage } from "../i18n/language-context";
 import type { CartResponseDto } from "../types/cart.types";
 
 export default function CartPage() {
+    const { t } = useLanguage();
     const [cart, setCart] = useState<CartResponseDto | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -110,6 +113,7 @@ export default function CartPage() {
     return (
         <>
             <Navbar />
+            <Seo title={t("seo.cartTitle")} noindex />
 
             <div className="cp-page">
                 <style>{`

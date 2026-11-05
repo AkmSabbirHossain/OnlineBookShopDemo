@@ -6,9 +6,12 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
+import Seo from "../components/common/Seo";
 import OrderService from "../services/order.service";
+import { useLanguage } from "../i18n/language-context";
 import type { OrderResponseDto, OrderStatus } from "../types/order.types";
 import { getOrderStatus } from "../utils/orderStatus";
+import { bookPath } from "../utils/slug";
 
 // ── Status badge ──
 function StatusBadge({ status }: { status: OrderStatus }) {
@@ -101,7 +104,7 @@ function OrderCard({
                             >
                                 <div>
                                     <Link
-                                        to={`/books/${item.bookId}`}
+                                        to={bookPath({ bookId: item.bookId, title: item.title ?? "" })}
                                         className="text-dark text-decoration-none fw-semibold small"
                                     >
                                         {item.title || `Book #${item.bookId}`}
@@ -160,6 +163,7 @@ function OrderCard({
 // MAIN PAGE
 // =============================================
 export default function OrdersPage() {
+    const { t } = useLanguage();
     const [orders, setOrders] = useState<OrderResponseDto[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -228,6 +232,7 @@ export default function OrdersPage() {
     return (
         <>
             <Navbar />
+            <Seo title={t("seo.ordersTitle")} noindex />
 
             <div className="bg-light min-vh-100 py-4">
                 <div className="container" style={{ maxWidth: "860px" }}>

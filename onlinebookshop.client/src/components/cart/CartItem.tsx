@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { CartItemResponseDto } from "../../types/cart.types";
+import { bookPath } from "../../utils/slug";
 
 interface Props {
   item: CartItemResponseDto;
@@ -59,7 +60,7 @@ export default function CartItem({ item, onQuantityChange, onRemove }: Props) {
       </div>
 
       <div className="cp-info">
-        <Link to={`/books/${item.bookId}`} className="cp-item-title">
+        <Link to={bookPath({ bookId: item.bookId, title: item.bookTitle })} className="cp-item-title">
           {item.bookTitle}
         </Link>
         <div className="cp-unit">

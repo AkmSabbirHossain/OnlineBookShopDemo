@@ -119,6 +119,8 @@ builder.Services.AddScoped<IVendorService, VendorService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IAuthorService, AuthorService>();
+builder.Services.AddScoped<IPublisherService, PublisherService>();
 builder.Services.AddScoped<IAddressService, AddressService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IOrderStatusHistoryService, OrderStatusHistoryService>();
@@ -128,6 +130,8 @@ builder.Services.AddScoped<IWishlistService, WishlistService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IVendorPayoutService, VendorPayoutService>();
 builder.Services.AddScoped<IBannerService, BannerService>();
+builder.Services.AddScoped<ICouponService, CouponService>();
+builder.Services.AddScoped<ISalesReportService, SalesReportService>();
 
 
 // 7. AutoMapper
@@ -140,7 +144,7 @@ builder.Services.AddCors(options =>
     {
 
         // policy.WithOrigins("http://localhost:5173","http://localhost:5174")
-        policy.WithOrigins("https://sabbirbookworld.vercel.app")
+         policy.WithOrigins("https://sabbirbookworld.vercel.app")
 
             .AllowAnyHeader()
             .AllowAnyMethod()

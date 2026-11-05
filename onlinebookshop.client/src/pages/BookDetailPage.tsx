@@ -2,29 +2,34 @@
 // BookDetailPage.tsx — Book detail
 // =============================================
 
-import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
+import Seo from "../components/common/Seo";
 import BookCard from "../components/books/BookCard";
 import ReviewSection from "../components/books/ReviewSection";
 import BookService from "../services/book.service";
 import CartService from "../services/cart.service";
 import ReviewService from "../services/review.service";
 import AuthService from "../services/auth.service";
+import { useLanguage } from "../i18n/language-context";
+import { bookPath, creatorPath, slugify } from "../utils/slug";
+import { absoluteUrl } from "../utils/seo";
 import type { BookImageDto, BookResponseDto, CategoryResponseDto } from "../types/book.types";
 import type { ReviewResponseDto } from "../types/review.types";
 import WishlistButton from "../components/wishlist/WishlistButton";
 
 const PLACEHOLDER_IMG = "https://placehold.co/400x550/f1f5f9/94a3b8?text=No+Cover";
-const currency = new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 });
 
 type DetailTab = "summary" | "description" | "reviews";
 
 export default function BookDetailPage() {
-    const { id } = useParams<{ id: string }>();
+    const { id, slug } = useParams<{ id: string; slug?: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const contentRef = useRef<HTMLDivElement>(null);
+    const { t, formatNumber } = useLanguage();
 
     const [book, setBook] = useState<BookResponseDto | null>(null);
     const [reviews, setReviews] = useState<ReviewResponseDto[]>([]);
@@ -66,16 +71,16 @@ export default function BookDetailPage() {
                 }
             } catch (err: unknown) {
                 if (axios.isAxiosError(err)) {
-                    setError(err.response?.data?.message || "Book not found.");
+                    setError(err.response?.data?.message || t("detail.notFound"));
                 } else {
-                    setError("Something went wrong.");
+                    setError(t("detail.somethingWrong"));
                 }
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, [id]);
+    }, [id, t]);
 
     useEffect(() => {
         if (!AuthService.isAuthenticated() || !id) return;
@@ -93,6 +98,15 @@ export default function BookDetailPage() {
         loadCartQty();
     }, [id]);
 
+    // Keep the decorative slug segment in sync with the book title.
+    useEffect(() => {
+        if (!book) return;
+        const expected = slugify(book.title) || "";
+        if ((slug ?? "") === expected) return;
+        if (!slug && !expected) return;
+        navigate(bookPath(book), { replace: true });
+    }, [book, slug, navigate]);
+
     const handleAddToCart = async () => {
         if (!AuthService.isAuthenticated()) { navigate("/auth"); return; }
         if (!book) return;
@@ -101,15 +115,15 @@ export default function BookDetailPage() {
         setCartMessage("");
         try {
             await CartService.addItem({ bookId: book.bookId, quantity: 1 });
-            setCartMessage("Book added to cart!");
+            setCartMessage(t("detail.addedToCart"));
             setCartQuantity((prev) => prev + 1);
             window.dispatchEvent(new Event("cartUpdated"));
             setTimeout(() => setCartMessage(""), 2500);
         } catch (err: unknown) {
             if (axios.isAxiosError(err)) {
-                setCartError(err.response?.data?.message || "Failed to add to cart.");
+                setCartError(err.response?.data?.message || t("detail.addFailed"));
             } else {
-                setCartError("Something went wrong.");
+                setCartError(t("detail.somethingWrong"));
             }
             setTimeout(() => setCartError(""), 3000);
         } finally {
@@ -124,7 +138,7 @@ export default function BookDetailPage() {
         setCartMessage("");
         try {
             await CartService.addItem({ bookId, quantity: 1 });
-            setCartMessage("Book added to cart!");
+            setCartMessage(t("detail.addedToCart"));
             setRelatedCartQuantities((prev) => ({
                 ...prev,
                 [bookId]: (prev[bookId] ?? 0) + 1,
@@ -133,9 +147,9 @@ export default function BookDetailPage() {
             setTimeout(() => setCartMessage(""), 2500);
         } catch (err: unknown) {
             if (axios.isAxiosError(err)) {
-                setCartError(err.response?.data?.message || "Failed to add to cart.");
+                setCartError(err.response?.data?.message || t("detail.addFailed"));
             } else {
-                setCartError("Something went wrong.");
+                setCartError(t("detail.somethingWrong"));
             }
             setTimeout(() => setCartError(""), 3000);
         } finally {
@@ -173,23 +187,75 @@ export default function BookDetailPage() {
         ? Math.round(((book!.price - book!.discountPrice!) / book!.price) * 100) : 0;
 
     const summaryRows: { label: string; value?: string | null; icon: string; to?: string }[] = book ? [
-        { label: "Author", value: book.author, icon: "bi-person", to: book.authorId ? `/authors/${book.authorId}` : undefined },
-        { label: "Category", value: categoryName, icon: "bi-tag" },
-        { label: "Publisher", value: book.publisher, icon: "bi-building", to: book.publisherId ? `/publishers/${book.publisherId}` : undefined },
-        { label: "Edition", value: book.edition, icon: "bi-journal-bookmark" },
-        { label: "Published", value: book.publishedYear ? String(book.publishedYear) : null, icon: "bi-calendar3" },
-        { label: "Language", value: book.language, icon: "bi-translate" },
-        { label: "Pages", value: book.pageCount ? `${book.pageCount} pages` : null, icon: "bi-file-text" },
-        { label: "ISBN", value: book.isbn, icon: "bi-upc-scan" },
+        { label: t("detail.author"), value: book.author, icon: "bi-person", to: book.authorId ? creatorPath("author", book.authorId, book.author) : undefined },
+        { label: t("detail.category"), value: categoryName, icon: "bi-tag" },
+        { label: t("detail.publisherLabel"), value: book.publisher, icon: "bi-building", to: book.publisherId && book.publisher ? creatorPath("publisher", book.publisherId, book.publisher) : undefined },
+        { label: t("detail.edition"), value: book.edition, icon: "bi-journal-bookmark" },
+        { label: t("detail.published"), value: book.publishedYear ? String(book.publishedYear) : null, icon: "bi-calendar3" },
+        { label: t("detail.language"), value: book.language, icon: "bi-translate" },
+        { label: t("detail.pages"), value: book.pageCount ? t("detail.pagesValue", { count: formatNumber(book.pageCount) }) : null, icon: "bi-file-text" },
+        { label: t("detail.isbn"), value: book.isbn, icon: "bi-upc-scan" },
     ].filter((row) => row.value) : [];
 
     const facts: { label: string; value: string }[] = [];
     if (book) {
-        if (book.language) facts.push({ label: "Language", value: book.language });
-        if (book.pageCount) facts.push({ label: "Pages", value: String(book.pageCount) });
-        if (book.edition) facts.push({ label: "Edition", value: book.edition });
-        if (book.publishedYear) facts.push({ label: "Published", value: String(book.publishedYear) });
+        if (book.language) facts.push({ label: t("detail.language"), value: book.language });
+        if (book.pageCount) facts.push({ label: t("detail.pages"), value: formatNumber(book.pageCount) });
+        if (book.edition) facts.push({ label: t("detail.edition"), value: book.edition });
+        if (book.publishedYear) facts.push({ label: t("detail.published"), value: formatNumber(book.publishedYear) });
     }
+
+    const authorName = book?.author;
+    const authorHref = book?.authorId && authorName
+        ? creatorPath("author", book.authorId, authorName)
+        : undefined;
+
+    const seoTitle = book
+        ? t("seo.bookTitle", { title: book.title, author: book.author })
+        : t("seo.defaultTitle");
+    const seoDescription = book?.description || t("seo.defaultDescription");
+    const seoImage = book?.imageUrl || undefined;
+    const canonicalPath = book ? bookPath(book) : location.pathname;
+
+    const bookJsonLd = useMemo(() => {
+        if (!book) return undefined;
+        const price = book.discountPrice && book.discountPrice < book.price
+            ? book.discountPrice
+            : book.price;
+        return {
+            "@context": "https://schema.org",
+            "@type": "Book",
+            name: book.title,
+            ...(book.subtitle ? { alternativeHeadline: book.subtitle } : {}),
+            author: { "@type": "Person", name: book.author },
+            ...(book.publisher ? { publisher: { "@type": "Organization", name: book.publisher } } : {}),
+            ...(book.isbn ? { isbn: book.isbn } : {}),
+            ...(book.pageCount ? { numberOfPages: book.pageCount } : {}),
+            ...(book.language ? { inLanguage: book.language } : {}),
+            ...(book.description ? { description: book.description } : {}),
+            ...(book.imageUrl ? { image: absoluteUrl(book.imageUrl) } : {}),
+            url: absoluteUrl(bookPath(book)),
+            offers: {
+                "@type": "Offer",
+                price: price.toFixed(2),
+                priceCurrency: "BDT",
+                availability:
+                    book.stock === 0
+                        ? "https://schema.org/OutOfStock"
+                        : "https://schema.org/InStock",
+                url: absoluteUrl(bookPath(book)),
+            },
+            ...(reviewCount > 0
+                ? {
+                      aggregateRating: {
+                          "@type": "AggregateRating",
+                          ratingValue: avgRating.toFixed(1),
+                          reviewCount,
+                      },
+                  }
+                : {}),
+        };
+    }, [book, reviewCount, avgRating]);
 
     const goToTab = (tab: DetailTab) => {
         setActiveTab(tab);
@@ -203,6 +269,14 @@ export default function BookDetailPage() {
     return (
         <>
             <Navbar />
+            <Seo
+                title={seoTitle}
+                description={seoDescription}
+                path={canonicalPath}
+                image={seoImage}
+                type="book"
+                jsonLd={bookJsonLd}
+            />
             <div className="bd-page">
                 <style>{`
                     .bd-page {
@@ -537,8 +611,8 @@ export default function BookDetailPage() {
 
                 <div className="bd-shell">
                     {/* Breadcrumb */}
-                    <nav className="bd-crumbs" aria-label="Breadcrumb">
-                        <Link to="/">Home</Link>
+                    <nav className="bd-crumbs" aria-label={t("detail.breadcrumb")}>
+                        <Link to="/">{t("footer.home")}</Link>
                         <i className="bi bi-chevron-right bd-crumb-sep" aria-hidden="true"></i>
                         {book && !loading && (
                             <>
@@ -547,7 +621,7 @@ export default function BookDetailPage() {
                             </>
                         )}
                         <span className="bd-crumb-current">
-                            {loading ? "Loading..." : book?.title ?? "Book Detail"}
+                            {loading ? t("detail.loading") : book?.title ?? t("home.allBooks")}
                         </span>
                     </nav>
 
@@ -572,7 +646,7 @@ export default function BookDetailPage() {
                         <div className="bd-error" role="alert">
                             <i className="bi bi-exclamation-triangle-fill"></i>
                             <span>{error}</span>
-                            <Link to="/">Back to home</Link>
+                            <Link to="/">{t("detail.backHome")}</Link>
                         </div>
                     )}
 
@@ -585,10 +659,12 @@ export default function BookDetailPage() {
                                     <div className="bd-cover-frame">
                                         <div className="bd-cover-badges">
                                             {hasDiscount && (
-                                                <span className="bd-badge-discount">{discountPercentage}% OFF</span>
+                                                <span className="bd-badge-discount">
+                                                    {t("card.off")} {formatNumber(discountPercentage)}%
+                                                </span>
                                             )}
                                             {book.isFeatured && (
-                                                <span className="bd-badge-featured"><i className="bi bi-star-fill me-1"></i>Featured</span>
+                                                <span className="bd-badge-featured"><i className="bi bi-star-fill me-1"></i>{t("detail.featured")}</span>
                                             )}
                                         </div>
                                         <img
@@ -599,14 +675,17 @@ export default function BookDetailPage() {
                                     </div>
 
                                     {galleryImages.length > 1 && (
-                                        <div className="bd-thumbs" role="group" aria-label="Book images">
+                                        <div className="bd-thumbs" role="group" aria-label={t("detail.bookImages")}>
                                             {galleryImages.map((image, i) => (
                                                 <button
                                                     key={`${image.bookImageId}-${i}`}
                                                     type="button"
                                                     className={`bd-thumb${safeImageIndex === i ? " is-active" : ""}`}
                                                     onClick={() => setSelectedImageIndex(i)}
-                                                    aria-label={`Show image ${i + 1} of ${galleryImages.length}`}
+                                                    aria-label={t("detail.showImage", {
+                                                        index: formatNumber(i + 1),
+                                                        total: formatNumber(galleryImages.length),
+                                                    })}
                                                     aria-pressed={safeImageIndex === i}
                                                 >
                                                     <img
@@ -629,9 +708,9 @@ export default function BookDetailPage() {
                                     <h1 className="bd-title">{book.title}</h1>
                                     {book.subtitle && <p className="bd-subtitle">{book.subtitle}</p>}
                                     <div className="bd-byline">
-                                        by{" "}
-                                        {book.authorId ? (
-                                            <Link to={`/authors/${book.authorId}`}>
+                                        {t("detail.by")}{" "}
+                                        {authorHref ? (
+                                            <Link to={authorHref}>
                                                 <strong>{book.author}</strong>
                                             </Link>
                                         ) : (
@@ -647,9 +726,11 @@ export default function BookDetailPage() {
                                                         <i key={star} className={`bi ${star <= Math.round(avgRating) ? "bi-star-fill" : "bi-star"}`}></i>
                                                     ))}
                                                 </span>
-                                                <span className="bd-rating-score">{avgRating.toFixed(1)}</span>
+                                                <span className="bd-rating-score">{formatNumber(Number(avgRating.toFixed(1)))}</span>
                                                 <button type="button" className="bd-rating-link" onClick={goToReviews}>
-                                                    {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+                                                    {reviewCount === 1
+                                                        ? t("detail.reviewCountOne")
+                                                        : t("detail.reviewCount", { count: formatNumber(reviewCount) })}
                                                 </button>
                                             </>
                                         ) : (
@@ -660,7 +741,7 @@ export default function BookDetailPage() {
                                                     ))}
                                                 </span>
                                                 <button type="button" className="bd-rating-link" onClick={goToReviews}>
-                                                    Be the first to review
+                                                    {t("detail.firstReview")}
                                                 </button>
                                             </>
                                         )}
@@ -671,7 +752,7 @@ export default function BookDetailPage() {
                                             <p className="bd-lead">{book.description}</p>
                                             {book.description.length > 200 && (
                                                 <button type="button" className="bd-text-btn" onClick={() => goToTab("description")}>
-                                                    Read full description
+                                                    {t("detail.readMore")}
                                                 </button>
                                             )}
                                         </>
@@ -690,31 +771,31 @@ export default function BookDetailPage() {
                                 </div>
 
                                 {/* Buy panel */}
-                                <aside className="bd-buy" aria-label="Purchase">
-                                    <div className="bd-buy-label">Price</div>
+                                <aside className="bd-buy" aria-label={t("detail.purchase")}>
+                                    <div className="bd-buy-label">{t("detail.price")}</div>
                                     <div className="bd-price-row">
-                                        <span className="bd-price">৳{currency.format(displayPrice)}</span>
+                                        <span className="bd-price">৳{formatNumber(displayPrice)}</span>
                                         {hasDiscount && (
-                                            <span className="bd-price-old">৳{currency.format(book.price)}</span>
+                                            <span className="bd-price-old">৳{formatNumber(book.price)}</span>
                                         )}
                                     </div>
                                     {hasDiscount && (
-                                        <span className="bd-save">You save ৳{currency.format(savings)}</span>
+                                        <span className="bd-save">{t("detail.youSave", { amount: `৳${formatNumber(savings)}` })}</span>
                                     )}
 
                                     <div className={`bd-stock ${isOutOfStock ? "out" : lowStock ? "low" : "in"}`}>
                                         <i className="bi bi-circle-fill" aria-hidden="true"></i>
                                         {isOutOfStock
-                                            ? "Out of stock"
+                                            ? t("detail.outOfStock")
                                             : lowStock
-                                                ? `Only ${book.stock} left in stock`
-                                                : "In stock"}
+                                                ? t("detail.lowStock", { count: formatNumber(book.stock) })
+                                                : t("detail.inStock")}
                                     </div>
 
                                     {cartQuantity > 0 && (
                                         <div className="bd-cart-chip">
-                                            <span><i className="bi bi-cart-check me-1"></i>{cartQuantity} in cart</span>
-                                            <Link to="/cart">View cart →</Link>
+                                            <span><i className="bi bi-cart-check me-1"></i>{t("detail.inCart", { count: formatNumber(cartQuantity) })}</span>
+                                            <Link to="/cart">{t("detail.viewCart")}</Link>
                                         </div>
                                     )}
 
@@ -736,42 +817,42 @@ export default function BookDetailPage() {
                                         disabled={isOutOfStock || addingToCart || isMaxedOut}
                                     >
                                         {addingToCart ? (
-                                            <><span className="spinner-border spinner-border-sm" aria-hidden="true"></span>Adding...</>
+                                            <><span className="spinner-border spinner-border-sm" aria-hidden="true"></span>{t("detail.adding")}</>
                                         ) : isOutOfStock ? (
-                                            "Out of Stock"
+                                            t("detail.outOfStock")
                                         ) : isMaxedOut ? (
-                                            `In cart (${cartQuantity})`
+                                            t("detail.inCart", { count: formatNumber(cartQuantity) })
                                         ) : (
-                                            <><i className="bi bi-cart-plus"></i>Add to Cart</>
+                                            <><i className="bi bi-cart-plus"></i>{t("detail.addToCart")}</>
                                         )}
                                     </button>
 
                                     {cartQuantity > 0 && (
                                         <Link to="/cart" className="bd-btn-secondary">
-                                            <i className="bi bi-bag-check"></i>Go to Cart
+                                            <i className="bi bi-bag-check"></i>{t("detail.goToCart")}
                                         </Link>
                                     )}
 
                                     <div className="bd-wish-row">
                                         <WishlistButton bookId={book.bookId} />
-                                        <span>Save to wishlist</span>
+                                        <span>{t("detail.saveToWishlist")}</span>
                                     </div>
 
                                     <div className="bd-perks">
-                                        <div className="bd-perk"><i className="bi bi-truck"></i>Fast home delivery</div>
-                                        <div className="bd-perk"><i className="bi bi-arrow-repeat"></i>Easy returns</div>
-                                        <div className="bd-perk"><i className="bi bi-shield-check"></i>Secure payment</div>
+                                        <div className="bd-perk"><i className="bi bi-truck"></i>{t("detail.perkDelivery")}</div>
+                                        <div className="bd-perk"><i className="bi bi-arrow-repeat"></i>{t("detail.perkReturns")}</div>
+                                        <div className="bd-perk"><i className="bi bi-shield-check"></i>{t("detail.perkSecure")}</div>
                                     </div>
                                 </aside>
                             </section>
 
                             {/* ══════════════ Tabs ══════════════ */}
                             <section className="bd-detail" ref={contentRef}>
-                                <div className="bd-tabs" role="tablist" aria-label="Book information">
+                                <div className="bd-tabs" role="tablist" aria-label={t("detail.bookInfo")}>
                                     {[
-                                        { key: "description" as DetailTab, label: "Description", icon: "bi-text-left" },
-                                        { key: "summary" as DetailTab, label: "Specifications", icon: "bi-card-list" },
-                                        { key: "reviews" as DetailTab, label: `Reviews (${reviewCount})`, icon: "bi-star" },
+                                        { key: "description" as DetailTab, label: t("detail.tabDescription"), icon: "bi-text-left" },
+                                        { key: "summary" as DetailTab, label: t("detail.specifications"), icon: "bi-card-list" },
+                                        { key: "reviews" as DetailTab, label: `${t("detail.tabReviews")} (${formatNumber(reviewCount)})`, icon: "bi-star" },
                                     ].map((tab) => (
                                         <button
                                             key={tab.key}
@@ -798,12 +879,12 @@ export default function BookDetailPage() {
                                     {activeTab === "description" && (
                                         book.description
                                             ? <p className="bd-prose">{book.description}</p>
-                                            : <p className="bd-empty">No description available for this book.</p>
+                                            : <p className="bd-empty">{t("detail.noDescription")}</p>
                                     )}
 
                                     {activeTab === "summary" && (
                                         summaryRows.length === 0
-                                            ? <p className="bd-empty">No specification details available.</p>
+                                            ? <p className="bd-empty">{t("detail.noSpecs")}</p>
                                             : (
                                                 <dl className="bd-specs">
                                                     {summaryRows.map((row) => (
@@ -835,8 +916,8 @@ export default function BookDetailPage() {
                             {related.length > 0 && (
                                 <section className="bd-related">
                                     <div className="bd-related-head">
-                                        <h2>You may also like</h2>
-                                        <p>More books to explore from our collection.</p>
+                                        <h2>{t("detail.related")}</h2>
+                                        <p>{t("detail.relatedSub")}</p>
                                     </div>
                                     <div className="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-2 g-sm-3">
                                         {related.map((relatedBook) => (
@@ -844,7 +925,6 @@ export default function BookDetailPage() {
                                                 <BookCard
                                                     book={relatedBook}
                                                     onAddToCart={handleAddRelatedToCart}
-                                                    onAddToWishlist={() => undefined}
                                                     addingToCart={addingRelatedToCart === relatedBook.bookId}
                                                     cartQuantity={relatedCartQuantities[relatedBook.bookId] ?? 0}
                                                 />

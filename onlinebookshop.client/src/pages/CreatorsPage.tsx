@@ -5,8 +5,11 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Navbar from "../components/common/Navbar";
+import Seo from "../components/common/Seo";
 import CreatorCard, { type CreatorKind } from "../components/creators/CreatorCard";
 import CreatorService from "../services/creator.service";
+import { useLanguage } from "../i18n/language-context";
+import type { TranslationKey } from "../i18n/translations";
 import "../components/creators/creator.css";
 
 const PAGE_SIZE = 24;
@@ -23,31 +26,49 @@ interface CreatorItem {
     bookCount: number;
 }
 
-const COPY = {
+interface DirectoryCopy {
+    eyebrow: TranslationKey;
+    title: TranslationKey;
+    subtitle: TranslationKey;
+    icon: string;
+    placeholder: TranslationKey;
+    emptyTitle: TranslationKey;
+    emptyText: TranslationKey;
+    count: TranslationKey;
+    countOne: TranslationKey;
+    seoTitle: TranslationKey;
+}
+
+const COPY: Record<CreatorKind, DirectoryCopy> = {
     author: {
-        eyebrow: "Voices worth reading",
-        title: "Writers",
-        subtitle: "Meet the authors behind your favourite books and explore everything they have written.",
+        eyebrow: "creators.writersEyebrow",
+        title: "nav.writers",
+        subtitle: "creators.writersSubtitle",
         icon: "bi-feather",
-        placeholder: "Search writers by name…",
-        emptyTitle: "No writers found",
-        emptyText: "Try a different name or browse the full directory.",
-        group: "writer",
+        placeholder: "creators.writersPlaceholder",
+        emptyTitle: "creators.noWriters",
+        emptyText: "creators.noWritersText",
+        count: "creators.countWriters",
+        countOne: "creators.countWriterOne",
+        seoTitle: "seo.writersTitle",
     },
     publisher: {
-        eyebrow: "Houses behind the books",
-        title: "Publishers",
-        subtitle: "Browse the publishing houses that bring these books to readers across the country.",
+        eyebrow: "creators.publishersEyebrow",
+        title: "nav.publishers",
+        subtitle: "creators.publishersSubtitle",
         icon: "bi-building",
-        placeholder: "Search publishers by name…",
-        emptyTitle: "No publishers found",
-        emptyText: "Try a different name or browse the full directory.",
-        group: "publisher",
+        placeholder: "creators.publishersPlaceholder",
+        emptyTitle: "creators.noPublishers",
+        emptyText: "creators.noPublishersText",
+        count: "creators.countPublishers",
+        countOne: "creators.countPublisherOne",
+        seoTitle: "seo.publishersTitle",
     },
-} as const;
+};
 
 export default function CreatorsPage({ kind }: Props) {
     const copy = COPY[kind];
+    const { t, formatNumber } = useLanguage();
 
     const [items, setItems] = useState<CreatorItem[]>([]);
     const [total, setTotal] = useState(0);
@@ -59,6 +80,7 @@ export default function CreatorsPage({ kind }: Props) {
     const [reloadToken, setReloadToken] = useState(0);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const groupLabel = t(copy.title);
 
     // Debounced search — resets to the first page.
     useEffect(() => {
@@ -71,10 +93,10 @@ export default function CreatorsPage({ kind }: Props) {
 
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
-        setError("");
 
         const load = async (): Promise<{ items: CreatorItem[]; total: number }> => {
+            setLoading(true);
+            setError("");
             const params = { search: search || undefined, page, pageSize: PAGE_SIZE };
 
             if (kind === "author") {
@@ -114,8 +136,9 @@ export default function CreatorsPage({ kind }: Props) {
                 if (cancelled) return;
                 setError(
                     axios.isAxiosError(err)
-                        ? err.response?.data?.message || `Failed to load ${copy.group}s.`
-                        : "Something went wrong."
+                        ? err.response?.data?.message ||
+                              t("creators.loadFailed", { group: groupLabel })
+                        : t("detail.somethingWrong")
                 );
             })
             .finally(() => {
@@ -125,25 +148,33 @@ export default function CreatorsPage({ kind }: Props) {
         return () => {
             cancelled = true;
         };
-    }, [kind, search, page, reloadToken, copy.group]);
+    }, [kind, search, page, reloadToken, t, groupLabel]);
 
     const countText = useMemo(
-        () => `${total} ${copy.group}${total === 1 ? "" : "s"}`,
-        [total, copy.group]
+        () =>
+            total === 1
+                ? t(copy.countOne)
+                : t(copy.count, { count: formatNumber(total) }),
+        [total, t, copy.count, copy.countOne, formatNumber]
     );
 
     return (
         <>
             <Navbar />
+            <Seo
+                title={t(copy.seoTitle)}
+                description={t(copy.subtitle)}
+                path={kind === "author" ? "/authors" : "/publishers"}
+            />
             <div className="cr-page">
                 <header className="cr-hero">
                     <div className="cr-hero-inner">
                         <span className="cr-eyebrow">
                             <i className={`bi ${copy.icon}`} aria-hidden="true" />
-                            {copy.eyebrow}
+                            {t(copy.eyebrow)}
                         </span>
-                        <h1 className="cr-title">{copy.title}</h1>
-                        <p className="cr-sub">{copy.subtitle}</p>
+                        <h1 className="cr-title">{t(copy.title)}</h1>
+                        <p className="cr-sub">{t(copy.subtitle)}</p>
 
                         <div className="cr-toolbar">
                             <form
@@ -160,16 +191,16 @@ export default function CreatorsPage({ kind }: Props) {
                                     type="search"
                                     value={searchInput}
                                     onChange={(e) => setSearchInput(e.target.value)}
-                                    placeholder={copy.placeholder}
-                                    aria-label={copy.placeholder}
+                                    placeholder={t(copy.placeholder)}
+                                    aria-label={t(copy.placeholder)}
                                 />
-                                <button type="submit">
-                                    Search
-                                </button>
+                                <button type="submit">{t("creators.search")}</button>
                             </form>
 
                             {!loading && !error && (
-                                <span className="cr-count-pill" aria-live="polite">{countText}</span>
+                                <span className="cr-count-pill" aria-live="polite">
+                                    {countText}
+                                </span>
                             )}
                         </div>
                     </div>
@@ -177,20 +208,25 @@ export default function CreatorsPage({ kind }: Props) {
 
                 <main className="cr-body">
                     <span className="visually-hidden" role="status" aria-live="polite">
-                        {loading ? `Loading ${copy.group}s…` : countText}
+                        {loading
+                            ? t("creators.loading", { group: groupLabel })
+                            : countText}
                     </span>
 
                     {error ? (
                         <div className="cr-state">
-                            <div className="cr-state-icon"><i className="bi bi-wifi-off" aria-hidden="true" /></div>
-                            <h3>Could not load {copy.group}s</h3>
+                            <div className="cr-state-icon">
+                                <i className="bi bi-wifi-off" aria-hidden="true" />
+                            </div>
+                            <h3>{t("creators.couldNotLoad", { group: groupLabel })}</h3>
                             <p>{error}</p>
                             <button
                                 type="button"
                                 className="btn btn-primary px-4"
-                                onClick={() => setReloadToken((t) => t + 1)}
+                                onClick={() => setReloadToken((token) => token + 1)}
                             >
-                                <i className="bi bi-arrow-clockwise me-1" /> Try again
+                                <i className="bi bi-arrow-clockwise me-1" />{" "}
+                                {t("common.tryAgain")}
                             </button>
                         </div>
                     ) : loading ? (
@@ -201,9 +237,11 @@ export default function CreatorsPage({ kind }: Props) {
                         </div>
                     ) : items.length === 0 ? (
                         <div className="cr-state">
-                            <div className="cr-state-icon"><i className={`bi ${copy.icon}`} aria-hidden="true" /></div>
-                            <h3>{copy.emptyTitle}</h3>
-                            <p>{copy.emptyText}</p>
+                            <div className="cr-state-icon">
+                                <i className={`bi ${copy.icon}`} aria-hidden="true" />
+                            </div>
+                            <h3>{t(copy.emptyTitle)}</h3>
+                            <p>{t(copy.emptyText)}</p>
                             {search && (
                                 <button
                                     type="button"
@@ -214,7 +252,7 @@ export default function CreatorsPage({ kind }: Props) {
                                         setPage(1);
                                     }}
                                 >
-                                    Clear search
+                                    {t("creators.clearSearch")}
                                 </button>
                             )}
                         </div>
@@ -235,7 +273,12 @@ export default function CreatorsPage({ kind }: Props) {
                             </div>
 
                             {totalPages > 1 && (
-                                <nav className="cr-pager" aria-label={`${copy.title} pages`}>
+                                <nav
+                                    className="cr-pager"
+                                    aria-label={t("creators.pagesAria", {
+                                        title: groupLabel,
+                                    })}
+                                >
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -244,9 +287,15 @@ export default function CreatorsPage({ kind }: Props) {
                                         }}
                                         disabled={page <= 1}
                                     >
-                                        <i className="bi bi-chevron-left" aria-hidden="true" /> Previous
+                                        <i className="bi bi-chevron-left" aria-hidden="true" />{" "}
+                                        {t("creators.previous")}
                                     </button>
-                                    <span>Page {page} of {totalPages}</span>
+                                    <span>
+                                        {t("creators.pageOf", {
+                                            page: formatNumber(page),
+                                            total: formatNumber(totalPages),
+                                        })}
+                                    </span>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -255,7 +304,8 @@ export default function CreatorsPage({ kind }: Props) {
                                         }}
                                         disabled={page >= totalPages}
                                     >
-                                        Next <i className="bi bi-chevron-right" aria-hidden="true" />
+                                        {t("creators.next")}{" "}
+                                        <i className="bi bi-chevron-right" aria-hidden="true" />
                                     </button>
                                 </nav>
                             )}

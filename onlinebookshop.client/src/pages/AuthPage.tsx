@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import LoginForm from "../components/auth/Loginform";
 import RegisterForm from "../components/auth/Registerform";
+import Seo from "../components/common/Seo";
+import { useLanguage } from "../i18n/language-context";
 
 type Tab = "login" | "register";
 
@@ -12,6 +14,7 @@ export default function AuthPage() {
     const [activeTab, setActiveTab] = useState<Tab>("login");
     const [successMsg, setSuccessMsg] = useState("");
     const navigate = useNavigate();
+    const { t } = useLanguage();
 
     const handleSuccess = (userName: string, role: string) => {
         setSuccessMsg(`Welcome, ${userName}!`);
@@ -31,6 +34,8 @@ export default function AuthPage() {
     };
 
     return (
+        <>
+        <Seo title={t("seo.authTitle")} noindex />
         <div
             className="min-vh-100 d-flex align-items-center justify-content-center py-4 px-3"
             style={{
@@ -78,7 +83,7 @@ export default function AuthPage() {
                                     onClick={() => switchTab("login")}
                                 >
                                     <i className="bi bi-box-arrow-in-right me-2"></i>
-                                    Sign In
+                                    {t("nav.signIn")}
                                 </button>
                             </li>
                             <li className="nav-item">
@@ -89,7 +94,7 @@ export default function AuthPage() {
                                     onClick={() => switchTab("register")}
                                 >
                                     <i className="bi bi-person-plus me-2"></i>
-                                   Register
+                                    {t("nav.register")}
                                 </button>
                             </li>
                         </ul>
@@ -119,5 +124,6 @@ export default function AuthPage() {
                 </div>
             </div>
         </div>
+        </>
     );
 }

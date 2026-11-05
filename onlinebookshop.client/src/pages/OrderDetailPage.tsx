@@ -10,6 +10,7 @@ import OrderService from "../services/order.service";
 import type { OrderResponseDto, OrderStatus } from "../types/order.types";
 import { getOrderStatus, ORDER_STATUS_META, TIMELINE_STEPS } from "../utils/orderStatus";
 import { getDeliveryCharge } from "../utils/pricing";
+import { bookPath } from "../utils/slug";
 
 const PLACEHOLDER_IMG = "https://placehold.co/200x260/f1f5f9/94a3b8?text=Book";
 const currency = new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -99,9 +100,10 @@ export default function OrderDetailPage() {
 
     const currentStatus: OrderStatus = order ? getOrderStatus(order.status) : "Pending";
     const totalQuantity = order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
-    const subtotal = order?.totalAmount ?? 0;
-    const deliveryCharge = order ? getDeliveryCharge(order.totalAmount) : 0;
-    const grandTotal = subtotal + deliveryCharge;
+    const subtotal = order?.subtotalAmount ?? order?.totalAmount ?? 0;
+    const discount = order?.discountAmount ?? 0;
+    const deliveryCharge = order ? getDeliveryCharge(subtotal) : 0;
+    const grandTotal = (order?.totalAmount ?? 0) + deliveryCharge;
 
     const timelineEvents: { status: OrderStatus; changedAt?: string }[] = [];
     if (order) {
@@ -618,7 +620,7 @@ export default function OrderDetailPage() {
                                                     />
                                                 </div>
                                                 <div className="od-item-info">
-                                                    <Link to={`/books/${item.bookId}`} className="od-item-title">
+                                                    <Link to={bookPath({ bookId: item.bookId, title: item.title ?? "" })} className="od-item-title">
                                                         {item.title || `Book #${item.bookId}`}
                                                     </Link>
                                                     <div className="od-item-unit">
@@ -644,6 +646,12 @@ export default function OrderDetailPage() {
                                                 <span>Subtotal</span>
                                                 <b>৳ {currency.format(subtotal)}</b>
                                             </div>
+                                            {discount > 0 && (
+                                                <div className="od-row" style={{ color: "var(--od-good)" }}>
+                                                    <span>Coupon discount{order.couponCode ? ` (${order.couponCode})` : ""}</span>
+                                                    <b style={{ color: "var(--od-good)" }}>- ৳ {currency.format(discount)}</b>
+                                                </div>
+                                            )}
                                             <div className="od-row">
                                                 <span>Delivery charge</span>
                                                 {deliveryCharge === 0 ? (

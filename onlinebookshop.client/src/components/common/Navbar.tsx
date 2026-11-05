@@ -2,12 +2,17 @@
 // Navbar.tsx —
 // =============================================
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import AuthService from "../../services/auth.service";
 import CartService from "../../services/cart.service";
 import NotificationBell from "../notifications/NotificationBell";
 import BookSearchBox from "../search/BookSearchBox";
+import LanguageToggle from "./LanguageToggle";
+import { useLanguage } from "../../i18n/language-context";
+import type { TranslationKey } from "../../i18n/translations";
+import { bookPath } from "../../utils/slug";
+import type { BookResponseDto } from "../../types/book.types";
 import brandIcon from "../../assets/brand-icon.svg";
 
 // ── SVG Icons ────────────────────────────────
@@ -70,32 +75,40 @@ const TruckIcon = () => (
 );
 
 // ── Category nav items ──────────────────────
-const CATEGORIES = [
-    { label: "Books", to: "/?category=books" },
-    { label: "Academic", to: "/?category=academic" },
-    { label: "Children", to: "/?category=children" },
-    { label: "Islamic", to: "/?category=islamic" },
-    { label: "Fiction", to: "/?category=fiction" },
-    { label: "Non-Fiction", to: "/?category=nonfiction" },
-    { label: "Stationery", to: "/?category=stationery" },
-    { label: "Writers", to: "/authors" },
-    { label: "Publishers", to: "/publishers" },
-    { label: "New Arrivals", to: "/?sort=new" },
-];
-
-// ── Typewriter placeholder phrases ──────────────────────
-const SEARCH_PLACEHOLDERS = [
-    "Search by book name (Chintar poriborton,Nobir Bani...)",
-    "Search by author name (Sabbir,Ariful Islam...)",
+const CATEGORIES: { labelKey: TranslationKey; to: string; highlight?: boolean }[] = [
+    { labelKey: "nav.books", to: "/books" },
+    { labelKey: "nav.academic", to: "/category/academic" },
+    { labelKey: "nav.children", to: "/category/children" },
+    { labelKey: "nav.islamic", to: "/category/islamic" },
+    { labelKey: "nav.fiction", to: "/category/fiction" },
+    { labelKey: "nav.nonfiction", to: "/category/non-fiction" },
+    { labelKey: "nav.stationery", to: "/category/stationery" },
+    { labelKey: "nav.writers", to: "/authors" },
+    { labelKey: "nav.publishers", to: "/publishers" },
+    { labelKey: "nav.newArrivals", to: "/books?sort=newest", highlight: true },
 ];
 
 export default function Navbar() {
     const navigate = useNavigate();
     const location = useLocation();
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const { t } = useLanguage();
+    const searchPlaceholders = useMemo(
+        () => [t("nav.searchPhrase1"), t("nav.searchPhrase2")],
+        [t]
+    );
 
     const [user, setUser] = useState(AuthService.getCurrentUser());
-    const [searchQuery, setSearchQuery] = useState("");
+    const urlSearch = useMemo(
+        () => new URLSearchParams(location.search).get("search") ?? "",
+        [location.search]
+    );
+    const [searchQuery, setSearchQuery] = useState(urlSearch);
+    const [syncedUrlSearch, setSyncedUrlSearch] = useState(urlSearch);
+    if (urlSearch !== syncedUrlSearch) {
+        setSyncedUrlSearch(urlSearch);
+        setSearchQuery(urlSearch);
+    }
     const [cartCount, setCartCount] = useState(0);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -108,21 +121,23 @@ export default function Navbar() {
     const deletePauseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        const current = SEARCH_PLACEHOLDERS[phraseIndex];
+        const current = searchPlaceholders[phraseIndex % searchPlaceholders.length];
+        const position = Math.min(charIndex, current.length);
         const speed = isDeleting ? 35 : 75;
 
         const timer = setTimeout(() => {
-            if (!isDeleting && charIndex < current.length) {
-                setPlaceholderText(current.slice(0, charIndex + 1));
-                setCharIndex((c) => c + 1);
-            } else if (!isDeleting && charIndex === current.length) {
+            if (!isDeleting && position < current.length) {
+                setPlaceholderText(current.slice(0, position + 1));
+                setCharIndex(position + 1);
+            } else if (!isDeleting && position === current.length) {
                 deletePauseRef.current = setTimeout(() => setIsDeleting(true), 1600);
-            } else if (isDeleting && charIndex > 0) {
-                setPlaceholderText(current.slice(0, charIndex - 1));
-                setCharIndex((c) => c - 1);
+            } else if (isDeleting && position > 0) {
+                setPlaceholderText(current.slice(0, position - 1));
+                setCharIndex(position - 1);
             } else {
                 setIsDeleting(false);
-                setPhraseIndex((p) => (p + 1) % SEARCH_PLACEHOLDERS.length);
+                setCharIndex(0);
+                setPhraseIndex((p) => (p + 1) % searchPlaceholders.length);
             }
         }, speed);
 
@@ -130,17 +145,11 @@ export default function Navbar() {
             clearTimeout(timer);
             if (deletePauseRef.current) clearTimeout(deletePauseRef.current);
         };
-    }, [charIndex, isDeleting, phraseIndex]);
+    }, [charIndex, isDeleting, phraseIndex, searchPlaceholders]);
 
     useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const urlSearch = params.get("search") ?? "";
-        setSearchQuery(urlSearch);
-    }, [location.search]);
-
-    useEffect(() => {
-        const t = setTimeout(() => { setMobileMenuOpen(false); setDropdownOpen(false); }, 0);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => { setMobileMenuOpen(false); setDropdownOpen(false); }, 0);
+        return () => clearTimeout(timer);
     }, [location.pathname]);
 
     useEffect(() => {
@@ -183,9 +192,21 @@ export default function Navbar() {
     }, []);
 
     const isNavActive = (to: string) => {
-        const query = to.split("?")[1];
-        if (!query) return location.pathname === to || location.pathname.startsWith(`${to}/`);
-        return location.pathname === "/" && location.search.includes(query);
+        const [path, query] = to.split("?");
+        if (query) {
+            return (
+                location.pathname === path &&
+                new URLSearchParams(location.search).get("sort") ===
+                    new URLSearchParams(query).get("sort")
+            );
+        }
+        if (path === "/books") {
+            return (
+                location.pathname === "/books" &&
+                !new URLSearchParams(location.search).has("sort")
+            );
+        }
+        return location.pathname === path || location.pathname.startsWith(`${path}/`);
     };
 
     const handleLogout = () => {
@@ -198,22 +219,34 @@ export default function Navbar() {
         const trimmed = term.trim();
         setMobileMenuOpen(false);
         if (!trimmed) {
-            if (location.pathname !== "/" || location.search) navigate("/", { replace: true });
+            if (location.pathname === "/" && location.search) {
+                navigate("/", { replace: true });
+            }
             return;
         }
-        navigate(`/?search=${encodeURIComponent(trimmed)}`, { replace: true });
+        navigate(`/books?search=${encodeURIComponent(trimmed)}`, { replace: true });
     };
 
     const handleQueryChange = (next: string) => {
         setSearchQuery(next);
-        if (!next.trim() && location.pathname === "/" && location.search) {
-            navigate("/", { replace: true });
+        if (next.trim()) return;
+        if (location.pathname === "/") {
+            if (location.search) navigate("/", { replace: true });
+            return;
         }
+        const params = new URLSearchParams(location.search);
+        if (!params.has("search")) return;
+        params.delete("search");
+        const search = params.toString();
+        navigate(
+            { pathname: location.pathname, search: search ? `?${search}` : "" },
+            { replace: true }
+        );
     };
 
-    const handleSelectSuggestion = (bookId: number) => {
+    const handleSelectSuggestion = (book: BookResponseDto) => {
         setMobileMenuOpen(false);
-        navigate(`/books/${bookId}`);
+        navigate(bookPath(book));
     };
 
     const roleBadge = (role: string) => {
@@ -720,14 +753,14 @@ export default function Navbar() {
             <div className="nb-topbar">
                 <div className="nb-topbar-inner">
                     <div className="nb-topbar-left">
-                        <span className="nb-topbar-item"><TruckIcon /> Free delivery on orders over ৳500</span>
+                        <span className="nb-topbar-item"><TruckIcon /> {t("topbar.delivery")}</span>
                         <div className="nb-topbar-divider" />
-                        <span className="nb-topbar-item"><PhoneIcon /> 16297 (10am – 8pm)</span>
+                        <span className="nb-topbar-item"><PhoneIcon /> {t("topbar.helpline")}</span>
                     </div>
                     <div className="nb-topbar-right">
-                        <Link to="/vendor/register" className="nb-topbar-item">Become a Vendor</Link>
+                        <Link to="/vendor/register" className="nb-topbar-item">{t("topbar.becomeVendor")}</Link>
                         <div className="nb-topbar-divider" />
-                        <Link to="/orders" className="nb-topbar-item">Track Order</Link>
+                        <Link to="/orders" className="nb-topbar-item">{t("topbar.trackOrder")}</Link>
                     </div>
                 </div>
             </div>
@@ -751,7 +784,7 @@ export default function Navbar() {
                             <img src={brandIcon} alt="Sabbir Book Mall" className="nb-brand-icon" />
                             <div className="nb-brand-text">
                                 <span className="nb-brand-name">Sabbir Book<span>Mall</span></span>
-                                <span className="nb-brand-tagline">Welcome to book world</span>
+                                <span className="nb-brand-tagline">{t("brand.tagline")}</span>
                             </div>
                         </Link>
 
@@ -760,7 +793,7 @@ export default function Navbar() {
                             idPrefix="nb-desktop-search"
                             variant="desktop"
                             value={searchQuery}
-                            placeholder={placeholderText || "Search books, authors, ISBN…"}
+                            placeholder={placeholderText || t("nav.searchPlaceholderDesktop")}
                             onChange={handleQueryChange}
                             onSearch={handleSearch}
                             onSelectBook={handleSelectSuggestion}
@@ -768,24 +801,25 @@ export default function Navbar() {
 
                         {/* Actions */}
                         <div className="nb-actions">
+                            <LanguageToggle variant="bar" />
                             <div className="d-flex align-items-center gap-3">
                                 <NotificationBell />
                             </div>
-                            <Link className="nb-icon-btn nb-wishlist-icon" to="/wishlist" title="Wishlist">
+                            <Link className="nb-icon-btn nb-wishlist-icon" to="/wishlist" title={t("nav.wishlist")}>
                                 <HeartIcon />
-                                <span className="nb-icon-label">Wishlist</span>
+                                <span className="nb-icon-label">{t("nav.wishlist")}</span>
                             </Link>
                        
                             <Link
                                 className="nb-icon-btn"
                                 to={AuthService.isAuthenticated() ? "/cart" : "/auth"}
-                                title="Cart"
+                                title={t("nav.cart")}
                             >
                                 <CartIcon />
                                 {cartCount > 0 && (
                                     <span className="nb-cart-badge">{cartCount > 99 ? "99+" : cartCount}</span>
                                 )}
-                                <span className="nb-icon-label">Cart</span>
+                                <span className="nb-icon-label">{t("nav.cart")}</span>
                             </Link>
 
                             {user ? (
@@ -808,34 +842,35 @@ export default function Navbar() {
                                             </div>
                                             <div className="nb-dropdown-body">
                                                 <Link className="nb-dropdown-item" to="/profile" onClick={() => setDropdownOpen(false)}>
-                                                    <UserIcon /> My Profile
+                                                    <UserIcon /> {t("nav.myProfile")}
                                                 </Link>
                                                 {user.role === "Customer" && (<>
-                                                    <Link className="nb-dropdown-item" to="/orders" onClick={() => setDropdownOpen(false)}><OrderIcon /> My Orders</Link>
-                                                    <Link className="nb-dropdown-item" to="/vendor/register" onClick={() => setDropdownOpen(false)}><ShopIcon /> Become a Vendor</Link>
+                                                    <Link className="nb-dropdown-item" to="/orders" onClick={() => setDropdownOpen(false)}><OrderIcon /> {t("nav.myOrders")}</Link>
+                                                    <Link className="nb-dropdown-item" to="/vendor/register" onClick={() => setDropdownOpen(false)}><ShopIcon /> {t("nav.becomeVendor")}</Link>
                                                 </>)}
                                                 {user.role === "Vendor" && (<>
-                                                    <Link className="nb-dropdown-item" to="/vendor/dashboard" onClick={() => setDropdownOpen(false)}><ShopIcon /> Vendor Dashboard</Link>
+                                                    <Link className="nb-dropdown-item" to="/vendor/dashboard" onClick={() => setDropdownOpen(false)}><ShopIcon /> {t("nav.vendorDashboard")}</Link>
                                                 
                                                 </>)}
                                                 {user.role === "Admin" && (<>
-                                                    <Link className="nb-dropdown-item" to="/admin/dashboard" onClick={() => setDropdownOpen(false)}><GearIcon /> Admin Panel</Link>
+                                                    <Link className="nb-dropdown-item" to="/admin/dashboard" onClick={() => setDropdownOpen(false)}><GearIcon /> {t("nav.adminPanel")}</Link>
                                                     
                                                 </>)}
                                                 <div className="nb-dropdown-divider" />
-                                                <button className="nb-dropdown-item danger" onClick={handleLogout}><LogoutIcon /> Logout</button>
+                                                <button className="nb-dropdown-item danger" onClick={handleLogout}><LogoutIcon /> {t("nav.logout")}</button>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <Link className="nb-signin-btn" to="/auth" aria-label="Sign In"><UserIcon /><span className="nb-signin-text">Sign In</span></Link>
+                                <Link className="nb-signin-btn" to="/auth" aria-label={t("nav.signIn")}><UserIcon /><span className="nb-signin-text">{t("nav.signIn")}</span></Link>
                             )}
 
                             <button
                                 className={`nb-hamburger${mobileMenuOpen ? " open" : ""}`}
                                 onClick={() => setMobileMenuOpen((p) => !p)}
-                                aria-label="Toggle menu"
+                                aria-label={t("nav.toggleMenu")}
+                                aria-expanded={mobileMenuOpen}
                             >
                                 <span className="nb-hamburger-line" />
                                 <span className="nb-hamburger-line" />
@@ -849,7 +884,7 @@ export default function Navbar() {
                         idPrefix="nb-mobile-search"
                         variant="mobile"
                         value={searchQuery}
-                        placeholder={placeholderText || "Search books, authors…"}
+                        placeholder={placeholderText || t("nav.searchPlaceholderMobile")}
                         onChange={handleQueryChange}
                         onSearch={handleSearch}
                         onSelectBook={handleSelectSuggestion}
@@ -871,74 +906,88 @@ export default function Navbar() {
                             </div>
                         )}
 
-                        <div className="nb-mobile-section-title">Navigation</div>
+                        <div className="nb-mobile-section-title">{t("nav.navigation")}</div>
 
-                        {/* Wishlist - Now showing for all logged in Customers */}
-                    
+                        <div style={{ padding: "0 16px 12px" }}>
+                            <div
+                                style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    letterSpacing: "0.08em",
+                                    textTransform: "uppercase",
+                                    color: "#64748b",
+                                    marginBottom: 6,
+                                }}
+                            >
+                                {t("nav.language")}
+                            </div>
+                            <LanguageToggle variant="drawer" />
+                        </div>
+
                         <Link className="nb-mobile-link" to={AuthService.isAuthenticated() ? "/cart" : "/auth"}>
-                            <CartIcon /> Cart {cartCount > 0 && `(${cartCount})`}
+                            <CartIcon /> {t("nav.cart")} {cartCount > 0 && `(${cartCount})`}
                         </Link>
 
                         {user ? (
                             <>
                                 <Link className="nb-mobile-link" to="/profile">
-                                    <UserIcon /> My Profile
+                                    <UserIcon /> {t("nav.myProfile")}
                                 </Link>
 
                                 {user.role === "Customer" && (
                                     <>
                                         <Link className="nb-mobile-link" to="/orders">
-                                            <OrderIcon /> My Orders
+                                            <OrderIcon /> {t("nav.myOrders")}
                                         </Link>
                                     
                                         
                                   
                                         <Link className="nb-mobile-link" to="/vendor/register">
-                                            <ShopIcon /> Become a Vendor
+                                            <ShopIcon /> {t("nav.becomeVendor")}
                                         </Link>
                                     </>
                                 )}
 
                                 {user.role === "Vendor" && (<>
                                     <Link className="nb-mobile-link" to="/vendor/dashboard">
-                                        <ShopIcon /> Vendor Dashboard
+                                        <ShopIcon /> {t("nav.vendorDashboard")}
                                     </Link>
                                     <Link className="nb-mobile-link" to="/vendor/earnings">
-                                        <OrderIcon /> My Earnings
+                                        <OrderIcon /> {t("nav.myEarnings")}
                                     </Link>
                                 </>)}
 
                                 {user.role === "Admin" && (<>
                                     <Link className="nb-mobile-link" to="/admin/dashboard">
-                                        <GearIcon /> Admin Panel
+                                        <GearIcon /> {t("nav.adminPanel")}
                                     </Link>
                                     <Link className="nb-mobile-link" to="/admin/vendor-payouts">
-                                        <OrderIcon /> Vendor Payouts
+                                        <OrderIcon /> {t("nav.vendorPayouts")}
                                     </Link>
                                 </>)}
 
                                 <div className="nb-mobile-divider" />
 
                                 <button className="nb-mobile-link danger" onClick={handleLogout}>
-                                    <LogoutIcon /> Logout
+                                    <LogoutIcon /> {t("nav.logout")}
                                 </button>
                             </>
                         ) : (
                             <Link className="nb-mobile-link" to="/auth">
-                                <UserIcon /> Sign In / Register
+                                <UserIcon /> {t("nav.signInRegister")}
                             </Link>
                         )}
 
                         <div className="nb-mobile-cats">
-                            <div className="nb-mobile-cats-title">Browse Categories</div>
+                            <div className="nb-mobile-cats-title">{t("nav.browseCategories")}</div>
                             <div className="nb-mobile-cats-grid">
                                 {CATEGORIES.map((cat) => (
                                     <Link
                                         key={cat.to}
-                                        className={`nb-mobile-cat-chip${cat.label === "New Arrivals" ? " highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
+                                        className={`nb-mobile-cat-chip${cat.highlight ? " highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
                                         to={cat.to}
                                     >
-                                        {cat.label}
+                                        {t(cat.labelKey)}
                                     </Link>
                                 ))}
                             </div>
@@ -951,10 +1000,10 @@ export default function Navbar() {
                             {CATEGORIES.map((cat) => (
                                 <Link
                                     key={cat.to}
-                                    className={`nb-cat-link${cat.label === "New Arrivals" ? " nb-cat-highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
+                                    className={`nb-cat-link${cat.highlight ? " nb-cat-highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
                                     to={cat.to}
                                 >
-                                    {cat.label}
+                                    {t(cat.labelKey)}
                                 </Link>
                             ))}
                         </div>

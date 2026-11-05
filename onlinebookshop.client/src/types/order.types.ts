@@ -12,6 +12,7 @@ export interface OrderItemCreateDto {
 export interface OrderCreateDto {
     addressId: number;
     items: OrderItemCreateDto[];
+    couponCode?: string;
 }
 
 export interface OrderItemResponseDto {
@@ -44,7 +45,10 @@ export interface OrderResponseDto {
     orderId: number;
     userId: number;
     addressId: number;
+    subtotalAmount: number;
+    discountAmount: number;
     totalAmount: number;
+    couponCode?: string;
     status: OrderStatus;
     orderDate: string;
     items: OrderItemResponseDto[];

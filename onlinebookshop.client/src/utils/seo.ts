@@ -3,7 +3,7 @@
 // =============================================
 
 export const SITE_NAME = "Sabbir BookMall";
-export const DEFAULT_OG_IMAGE = "/og-cover.png";
+export const DEFAULT_OG_IMAGE = "/og-cover.jpg";
 
 export function absoluteUrl(path: string): string {
     if (/^https?:\/\//i.test(path)) return path;

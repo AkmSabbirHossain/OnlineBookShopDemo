@@ -1068,7 +1068,7 @@ export default function HomePage() {
                     "@type": "Organization",
                     name: "Sabbir BookMall",
                     url: absoluteUrl("/"),
-                    logo: absoluteUrl("/og-cover.png"),
+                    logo: absoluteUrl("/og-cover.jpg"),
                 },
             ];
         }

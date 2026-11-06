@@ -11,7 +11,7 @@ export function absoluteUrl(path: string): string {
     return `${window.location.origin}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-export function truncate(text: string | undefined, max = 155): string | undefined {
+export function truncate(text: string | null | undefined, max = 155): string | undefined {
     if (!text) return undefined;
     const clean = text.replace(/\s+/g, " ").trim();
     if (clean.length <= max) return clean;

@@ -9,9 +9,9 @@ type JsonLd = Record<string, unknown>;
 
 interface SeoProps {
     title: string;
-    description?: string;
+    description?: string | null;
     path?: string;
-    image?: string;
+    image?: string | null;
     type?: "website" | "book" | "profile" | "article";
     noindex?: boolean;
     jsonLd?: JsonLd | JsonLd[];
@@ -46,19 +46,20 @@ export default function Seo({
     title,
     description,
     path,
-    image = DEFAULT_OG_IMAGE,
+    image,
     type = "website",
     noindex = false,
     jsonLd,
 }: SeoProps) {
     const { language, t } = useLanguage();
     const resolvedDescription = truncate(description) ?? t("seo.defaultDescription");
+    const resolvedImage = image ?? DEFAULT_OG_IMAGE;
     const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : "";
 
     useEffect(() => {
         const canonicalPath = path ?? window.location.pathname;
         const canonical = absoluteUrl(canonicalPath);
-        const imageUrl = absoluteUrl(image);
+        const imageUrl = absoluteUrl(resolvedImage);
         const locale = language === "bn" ? "bn_BD" : "en_US";
         const alternateLocale = language === "bn" ? "en_US" : "bn_BD";
 
@@ -106,7 +107,7 @@ export default function Seo({
         title,
         resolvedDescription,
         path,
-        image,
+        resolvedImage,
         type,
         noindex,
         jsonLdString,

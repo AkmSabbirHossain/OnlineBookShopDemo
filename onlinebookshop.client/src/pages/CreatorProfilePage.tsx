@@ -2,7 +2,7 @@
 // CreatorProfilePage.tsx — writer / publisher profile
 // =============================================
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import axios from "axios";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Navbar from "../components/common/Navbar";
@@ -99,6 +99,15 @@ export default function CreatorProfilePage({ kind }: Props) {
     const [booksError, setBooksError] = useState("");
     const [booksReload, setBooksReload] = useState(0);
 
+    // ── Sidebar filters ──
+    const [minInput, setMinInput] = useState("");
+    const [maxInput, setMaxInput] = useState("");
+    const [minPrice, setMinPrice] = useState<number | undefined>();
+    const [maxPrice, setMaxPrice] = useState<number | undefined>();
+    const [inStockOnly, setInStockOnly] = useState(false);
+    const [priceError, setPriceError] = useState("");
+    const [filtersOpen, setFiltersOpen] = useState(false);
+
     const [addingToCart, setAddingToCart] = useState<number | null>(null);
     const [cartQuantities, setCartQuantities] = useState<Record<number, number>>({});
     const [cartError, setCartError] = useState("");
@@ -158,11 +167,15 @@ export default function CreatorProfilePage({ kind }: Props) {
         setBooksLoading(true);
         setBooksError("");
 
-        BookService.searchBooks(
-            kind === "author"
-                ? { authorId: creatorId, page, pageSize: PAGE_SIZE, sortBy }
-                : { publisherId: creatorId, page, pageSize: PAGE_SIZE, sortBy }
-        )
+        BookService.searchBooks({
+            ...(kind === "author" ? { authorId: creatorId } : { publisherId: creatorId }),
+            page,
+            pageSize: PAGE_SIZE,
+            sortBy,
+            ...(minPrice !== undefined ? { minPrice } : {}),
+            ...(maxPrice !== undefined ? { maxPrice } : {}),
+            ...(inStockOnly ? { inStockOnly: true } : {}),
+        })
             .then((result) => {
                 if (cancelled) return;
                 setBooks(result.items);
@@ -183,7 +196,7 @@ export default function CreatorProfilePage({ kind }: Props) {
         return () => {
             cancelled = true;
         };
-    }, [kind, creatorId, isValidId, page, sortBy, booksReload, t]);
+    }, [kind, creatorId, isValidId, page, sortBy, minPrice, maxPrice, inStockOnly, booksReload, t]);
 
     useEffect(() => {
         if (!AuthService.isAuthenticated()) return;
@@ -225,6 +238,50 @@ export default function CreatorProfilePage({ kind }: Props) {
             setAddingToCart(null);
         }
     };
+
+    const parsePriceInput = (raw: string): number | undefined | null => {
+        const value = raw.trim();
+        if (!value) return undefined;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    };
+
+    const applyPrice = (event: FormEvent) => {
+        event.preventDefault();
+        setPriceError("");
+
+        const nextMin = parsePriceInput(minInput);
+        const nextMax = parsePriceInput(maxInput);
+
+        if (nextMin === null || nextMax === null) {
+            setPriceError(t("profile.priceError"));
+            return;
+        }
+        if (nextMin !== undefined && nextMax !== undefined && nextMin > nextMax) {
+            setPriceError(t("profile.priceError"));
+            return;
+        }
+
+        setMinPrice(nextMin);
+        setMaxPrice(nextMax);
+        setPage(1);
+        setFiltersOpen(false);
+    };
+
+    const resetFilters = () => {
+        setMinInput("");
+        setMaxInput("");
+        setMinPrice(undefined);
+        setMaxPrice(undefined);
+        setInStockOnly(false);
+        setSortBy("newest");
+        setPriceError("");
+        setPage(1);
+    };
+
+    const activeFilterCount =
+        (minPrice !== undefined || maxPrice !== undefined ? 1 : 0) + (inStockOnly ? 1 : 0);
+    const hasActiveFilters = activeFilterCount > 0 || sortBy !== "newest";
 
     const roleLabel = t(copy.role);
     const pageTitle = profile ? `${profile.name} — ${roleLabel}` : roleLabel;
@@ -337,28 +394,158 @@ export default function CreatorProfilePage({ kind }: Props) {
                                 </div>
                             </section>
 
-                            <div className="cr-section-head">
-                                <h2 className="cr-section-title">
-                                    <i className="bi bi-journals" aria-hidden="true" />
-                                    {t(copy.booksTitle, { name: profile.name })}
-                                </h2>
-                                <select
-                                    className="form-select form-select-sm"
-                                    style={{ width: "auto", minWidth: 170, fontSize: 12.5 }}
-                                    value={sortBy}
-                                    onChange={(e) => {
-                                        setSortBy(e.target.value as NonNullable<BookFilterParams["sortBy"]>);
-                                        setPage(1);
-                                    }}
-                                    aria-label={t("profile.sortAria")}
+                            <button
+                                type="button"
+                                className="cr-filter-toggle"
+                                onClick={() => setFiltersOpen((open) => !open)}
+                                aria-expanded={filtersOpen}
+                                aria-controls="cr-profile-filters"
+                            >
+                                <i className="bi bi-sliders2" aria-hidden="true" />
+                                {t("profile.filters")}
+                                {activeFilterCount > 0 && (
+                                    <span className="cr-filter-badge">
+                                        {formatNumber(activeFilterCount)}
+                                    </span>
+                                )}
+                            </button>
+
+                            <div className="cr-layout">
+                                <aside
+                                    id="cr-profile-filters"
+                                    className={`cr-filters${filtersOpen ? " is-open" : ""}`}
+                                    aria-label={t("profile.filters")}
                                 >
-                                    {SORT_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {t(option.labelKey)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                                    <div className="cr-filters-head">
+                                        <span>
+                                            <i className="bi bi-sliders2" aria-hidden="true" />
+                                            {t("profile.filters")}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="cr-filters-close"
+                                            onClick={() => setFiltersOpen(false)}
+                                            aria-label={t("profile.closeFilters")}
+                                        >
+                                            <i className="bi bi-x-lg" aria-hidden="true" />
+                                        </button>
+                                    </div>
+
+                                    <div className="cr-filter-block">
+                                        <h3 className="cr-filter-title">{t("profile.sortBy")}</h3>
+                                        <div
+                                            className="cr-options"
+                                            role="radiogroup"
+                                            aria-label={t("profile.sortAria")}
+                                        >
+                                            {SORT_OPTIONS.map((option) => (
+                                                <label
+                                                    key={option.value}
+                                                    className={`cr-option${
+                                                        sortBy === option.value ? " is-active" : ""
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="cr-sort"
+                                                        value={option.value}
+                                                        checked={sortBy === option.value}
+                                                        onChange={() => {
+                                                            setSortBy(option.value);
+                                                            setPage(1);
+                                                        }}
+                                                    />
+                                                    <span>{t(option.labelKey)}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="cr-filter-block">
+                                        <h3 className="cr-filter-title">
+                                            {t("profile.priceRange")}
+                                        </h3>
+                                        <form className="cr-price" onSubmit={applyPrice}>
+                                            <div className="cr-price-row">
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    inputMode="numeric"
+                                                    placeholder={t("home.minPrice")}
+                                                    aria-label={t("home.minPrice")}
+                                                    value={minInput}
+                                                    onChange={(e) => setMinInput(e.target.value)}
+                                                />
+                                                <span aria-hidden="true">–</span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    inputMode="numeric"
+                                                    placeholder={t("home.maxPrice")}
+                                                    aria-label={t("home.maxPrice")}
+                                                    value={maxInput}
+                                                    onChange={(e) => setMaxInput(e.target.value)}
+                                                />
+                                            </div>
+                                            {priceError && (
+                                                <p className="cr-filter-error" role="alert">
+                                                    {priceError}
+                                                </p>
+                                            )}
+                                            <button type="submit" className="cr-price-apply">
+                                                {t("profile.apply")}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <div className="cr-filter-block">
+                                        <h3 className="cr-filter-title">
+                                            {t("profile.availability")}
+                                        </h3>
+                                        <label className="cr-check">
+                                            <input
+                                                type="checkbox"
+                                                checked={inStockOnly}
+                                                onChange={(e) => {
+                                                    setInStockOnly(e.target.checked);
+                                                    setPage(1);
+                                                }}
+                                            />
+                                            <span>{t("home.inStockOnly")}</span>
+                                        </label>
+                                    </div>
+
+                                    {hasActiveFilters && (
+                                        <button
+                                            type="button"
+                                            className="cr-reset"
+                                            onClick={resetFilters}
+                                        >
+                                            <i
+                                                className="bi bi-arrow-counterclockwise"
+                                                aria-hidden="true"
+                                            />
+                                            {t("profile.clearFilters")}
+                                        </button>
+                                    )}
+                                </aside>
+
+                                <div className="cr-books">
+                                    <div className="cr-section-head">
+                                        <h2 className="cr-section-title">
+                                            <i className="bi bi-journals" aria-hidden="true" />
+                                            {t(copy.booksTitle, { name: profile.name })}
+                                        </h2>
+                                        {!booksLoading && !booksError && (
+                                            <span className="cr-result-count">
+                                                {bookTotal === 1
+                                                    ? t("profile.bookAvailableOne")
+                                                    : t("profile.booksAvailable", {
+                                                          count: formatNumber(bookTotal),
+                                                      })}
+                                            </span>
+                                        )}
+                                    </div>
 
                             {cartError && (
                                 <div className="alert alert-danger py-2 small" role="alert">{cartError}</div>
@@ -389,11 +576,27 @@ export default function CreatorProfilePage({ kind }: Props) {
                             ) : books.length === 0 ? (
                                 <div className="cr-state">
                                     <div className="cr-state-icon"><i className="bi bi-book" aria-hidden="true" /></div>
-                                    <h3>{t("profile.noBooks")}</h3>
-                                    <p>{t(copy.emptyBooks)}</p>
-                                    <Link to={copy.directory} className="btn btn-outline-primary px-4">
-                                        {t("profile.browse", { label: t(copy.directoryLabel) })}
-                                    </Link>
+                                    {hasActiveFilters ? (
+                                        <>
+                                            <h3>{t("profile.noMatches")}</h3>
+                                            <p>{t("profile.noMatchesText")}</p>
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-primary px-4"
+                                                onClick={resetFilters}
+                                            >
+                                                {t("profile.clearFilters")}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <h3>{t("profile.noBooks")}</h3>
+                                            <p>{t(copy.emptyBooks)}</p>
+                                            <Link to={copy.directory} className="btn btn-outline-primary px-4">
+                                                {t("profile.browse", { label: t(copy.directoryLabel) })}
+                                            </Link>
+                                        </>
+                                    )}
                                 </div>
                             ) : (
                                 <>
@@ -444,6 +647,8 @@ export default function CreatorProfilePage({ kind }: Props) {
                                     )}
                                 </>
                             )}
+                                </div>
+                            </div>
                         </>
                     ) : null}
                 </div>

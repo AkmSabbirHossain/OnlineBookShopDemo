@@ -6,6 +6,7 @@ import { useState } from "react";
 import axios from "axios";
 import AuthService from "../../services/auth.service";
 import type { UserLoginDto } from "../../types/auth.types";
+import SocialLogin from "./SocialLogin";
 
 interface Props {
     onSuccess: (userName: string, role: string) => void;
@@ -169,6 +170,9 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }: Props) {
                 <span className="text-muted small">OR</span>
                 <hr className="flex-grow-1 m-0" />
             </div>
+
+            {/* Social sign-in */}
+            <SocialLogin onSuccess={onSuccess} />
 
             {/* Switch to Register */}
             <p className="text-center text-muted mb-0" style={{ fontSize: "0.9rem" }}>

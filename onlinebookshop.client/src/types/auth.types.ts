@@ -13,6 +13,13 @@ export interface UserLoginDto {
     password: string;
 }
 
+export type ExternalLoginProvider = "Google" | "Facebook";
+
+export interface ExternalLoginDto {
+    provider: ExternalLoginProvider;
+    token: string;
+}
+
 export interface UserResponseDto {
     userId: number;
     name: string;

@@ -8,6 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace OnlineBookShop.Server.Services
 {
@@ -17,17 +18,23 @@ namespace OnlineBookShop.Server.Services
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             UserManager<AppUser> userManager,
             IMapper mapper,
             IConfiguration configuration,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IHttpClientFactory httpClientFactory,
+            ILogger<AuthService> logger)
         {
             _userManager = userManager;
             _mapper = mapper;
             _configuration = configuration;
             _unitOfWork = unitOfWork;
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
         }
 
         // Register User
@@ -60,13 +67,80 @@ namespace OnlineBookShop.Server.Services
             if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
                 throw new UnauthorizedAccessException("Invalid email or password");
 
+            return await IssueTokensAsync(user);
+        }
+
+        // External login (Google / Facebook) — validates the provider token server-side,
+        // links the provider account to a local user and issues the same JWT session.
+        public async Task<AuthResponseDto> ExternalLoginAsync(ExternalLoginDto dto)
+        {
+            var provider = (dto.Provider ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "google" => "Google",
+                "facebook" => "Facebook",
+                _ => throw new InvalidOperationException("Unsupported sign-in provider.")
+            };
+
+            var externalUser = provider == "Google"
+                ? await ValidateGoogleTokenAsync(dto.Token)
+                : await ValidateFacebookTokenAsync(dto.Token);
+
+            var user = await _userManager.FindByLoginAsync(provider, externalUser.ProviderKey);
+
+            if (user == null)
+            {
+                user = await _userManager.FindByEmailAsync(externalUser.Email);
+
+                if (user == null)
+                {
+                    user = new AppUser
+                    {
+                        Name = externalUser.Name,
+                        Email = externalUser.Email,
+                        UserName = externalUser.Email,
+                        EmailConfirmed = true,
+                        Role = AppUserRole.Customer,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    var createResult = await _userManager.CreateAsync(user);
+                    if (!createResult.Succeeded)
+                    {
+                        _logger.LogWarning("External sign-in user creation failed for {Provider}", provider);
+                        throw new InvalidOperationException("Could not create an account for this sign-in.");
+                    }
+
+                    await _userManager.AddToRoleAsync(user, "Customer");
+                }
+                else if (await _userManager.IsInRoleAsync(user, "Admin") ||
+                         await _userManager.IsInRoleAsync(user, "Vendor"))
+                {
+                    // Never hand an Admin/Vendor session to a third-party identity.
+                    throw new InvalidOperationException("This account must sign in with email and password.");
+                }
+
+                var linkResult = await _userManager.AddLoginAsync(
+                    user, new UserLoginInfo(provider, externalUser.ProviderKey, provider));
+
+                if (!linkResult.Succeeded &&
+                    !linkResult.Errors.All(e => e.Code == "LoginAlreadyAssociated"))
+                {
+                    throw new InvalidOperationException("Could not link this sign-in to your account.");
+                }
+            }
+
+            return await IssueTokensAsync(user);
+        }
+
+        // Shared token issuing for password and external logins.
+        private async Task<AuthResponseDto> IssueTokensAsync(AppUser user)
+        {
             var roles = await _userManager.GetRolesAsync(user);
             var role = roles.FirstOrDefault() ?? "Customer";
 
             var accessToken = GenerateAccessToken(user, roles);
             var refreshToken = GenerateRefreshToken();
 
-            // Save refresh token
             var refreshTokenEntity = new RefreshToken
             {
                 UserId = user.Id,
@@ -95,6 +169,107 @@ namespace OnlineBookShop.Server.Services
                 }
             };
         }
+
+        private sealed record ExternalUserInfo(string ProviderKey, string Email, string Name);
+
+        private async Task<ExternalUserInfo> ValidateGoogleTokenAsync(string idToken)
+        {
+            var clientId = _configuration["Authentication:Google:ClientId"];
+            if (string.IsNullOrWhiteSpace(clientId))
+                throw new InvalidOperationException("Google sign-in is not configured.");
+
+            if (string.IsNullOrWhiteSpace(idToken))
+                throw new InvalidOperationException("Google sign-in failed. Please try again.");
+
+            var client = _httpClientFactory.CreateClient();
+            using var response = await client.GetAsync(
+                "https://oauth2.googleapis.com/tokeninfo?id_token=" + Uri.EscapeDataString(idToken));
+
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException("Google sign-in failed. Please try again.");
+
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var root = json.RootElement;
+
+            var audience = root.TryGetProperty("aud", out var aud) ? aud.GetString() : null;
+            if (!string.Equals(audience, clientId, StringComparison.Ordinal))
+                throw new InvalidOperationException("Google sign-in failed. Please try again.");
+
+            var issuer = root.TryGetProperty("iss", out var iss) ? iss.GetString() : null;
+            if (issuer != "accounts.google.com" && issuer != "https://accounts.google.com")
+                throw new InvalidOperationException("Google sign-in failed. Please try again.");
+
+            var emailVerified = root.TryGetProperty("email_verified", out var verified) &&
+                (verified.ValueKind == JsonValueKind.True ||
+                 string.Equals(verified.GetString(), "true", StringComparison.OrdinalIgnoreCase));
+
+            var email = root.TryGetProperty("email", out var emailEl) ? emailEl.GetString() : null;
+            var subject = root.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(email) || !emailVerified || string.IsNullOrWhiteSpace(subject))
+                throw new InvalidOperationException("Your Google account email is not verified.");
+
+            var name = root.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+
+            return new ExternalUserInfo(subject!, email!, string.IsNullOrWhiteSpace(name) ? email! : name);
+        }
+
+        private async Task<ExternalUserInfo> ValidateFacebookTokenAsync(string accessToken)
+        {
+            var appId = _configuration["Authentication:Facebook:AppId"];
+            var appSecret = _configuration["Authentication:Facebook:AppSecret"];
+
+            if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(appSecret))
+                throw new InvalidOperationException("Facebook sign-in is not configured.");
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+                throw new InvalidOperationException("Facebook sign-in failed. Please try again.");
+
+            var client = _httpClientFactory.CreateClient();
+
+            // debug_token proves the token was issued for this app (app_id match).
+            using var debugResponse = await client.GetAsync(
+                "https://graph.facebook.com/debug_token?input_token=" +
+                Uri.EscapeDataString(accessToken) +
+                "&access_token=" +
+                Uri.EscapeDataString($"{appId}|{appSecret}"));
+
+            if (!debugResponse.IsSuccessStatusCode)
+                throw new InvalidOperationException("Facebook sign-in failed. Please try again.");
+
+            using var debugJson = JsonDocument.Parse(await debugResponse.Content.ReadAsStringAsync());
+            if (!debugJson.RootElement.TryGetProperty("data", out var data) ||
+                !data.TryGetProperty("is_valid", out var valid) || valid.ValueKind != JsonValueKind.True ||
+                !data.TryGetProperty("app_id", out var tokenAppId) ||
+                !string.Equals(tokenAppId.GetString(), appId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Facebook sign-in failed. Please try again.");
+            }
+
+            using var profileResponse = await client.GetAsync(
+                "https://graph.facebook.com/me?fields=id,name,email&access_token=" +
+                Uri.EscapeDataString(accessToken));
+
+            if (!profileResponse.IsSuccessStatusCode)
+                throw new InvalidOperationException("Facebook sign-in failed. Please try again.");
+
+            using var profileJson = JsonDocument.Parse(await profileResponse.Content.ReadAsStringAsync());
+            var profile = profileJson.RootElement;
+
+            var id = profile.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+            var email = profile.TryGetProperty("email", out var emailEl) ? emailEl.GetString() : null;
+            var name = profile.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(id))
+                throw new InvalidOperationException("Facebook sign-in failed. Please try again.");
+
+            if (string.IsNullOrWhiteSpace(email))
+                throw new InvalidOperationException(
+                    "Facebook did not share an email address. Please grant email permission and try again.");
+
+            return new ExternalUserInfo(id!, email!, string.IsNullOrWhiteSpace(name) ? email! : name);
+        }
+
 
         // Refresh Token
         public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)

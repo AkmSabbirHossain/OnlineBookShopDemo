@@ -1,0 +1,68 @@
+/* =============================================
+   social-login.css — Google / Facebook sign-in
+   ============================================= */
+
+.social-login {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.social-login__google {
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
+}
+
+.social-login__google > div {
+    width: 100% !important;
+}
+
+.social-login__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.social-login__btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.social-login__btn--facebook {
+    border: 1px solid #1877f2;
+    background: #1877f2;
+    color: #fff;
+}
+
+.social-login__btn--facebook:hover:not(:disabled) {
+    border-color: #1266d6;
+    background: #1266d6;
+}
+
+.social-login__btn i {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.social-login__error {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 10px;
+    border: 1px solid #f5c2c7;
+    border-radius: 8px;
+    background: #f8d7da;
+    color: #842029;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}

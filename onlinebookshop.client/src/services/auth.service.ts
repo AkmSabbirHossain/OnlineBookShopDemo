@@ -3,7 +3,12 @@
 // =============================================
 
 import axiosInstance from "./axiosInstance";
-import type { AuthResponse, UserLoginDto, UserRegisterDto } from "../types/auth.types";
+import type {
+    AuthResponse,
+    ExternalLoginDto,
+    UserLoginDto,
+    UserRegisterDto,
+} from "../types/auth.types";
 
 const AuthService = {
 
@@ -16,6 +21,12 @@ const AuthService = {
     // ── Login ──
     login: async (dto: UserLoginDto): Promise<AuthResponse> => {
         const response = await axiosInstance.post<AuthResponse>("/auth/login", dto);
+        return response.data;
+    },
+
+    // ── Google / Facebook sign-in ──
+    externalLogin: async (dto: ExternalLoginDto): Promise<AuthResponse> => {
+        const response = await axiosInstance.post<AuthResponse>("/auth/external", dto);
         return response.data;
     },
 

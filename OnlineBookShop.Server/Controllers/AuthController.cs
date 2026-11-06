@@ -78,6 +78,29 @@ namespace OnlineBookShop.Server.Controllers
             }
         }
 
+        [HttpPost("external")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ExternalLogin([FromBody] ExternalLoginDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var authResult = await _authService.ExternalLoginAsync(dto);
+                return Ok(authResult);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Error = ex.Message });
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new { Error = "Sign-in failed. Please try again." });
+            }
+        }
+
         [HttpPost("refresh")]
         [AllowAnonymous]
         public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto dto)

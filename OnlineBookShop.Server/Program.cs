@@ -66,6 +66,9 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddMemoryCache();
 
+// Outbound HTTP for external sign-in token validation (Google / Facebook)
+builder.Services.AddHttpClient();
+
 // 4.1 Rate Limiting — brute-force protection (login/register/refresh/forgot-password)
 builder.Services.AddRateLimiter(options =>
 {

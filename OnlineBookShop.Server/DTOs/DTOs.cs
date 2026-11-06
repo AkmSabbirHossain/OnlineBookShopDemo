@@ -30,6 +30,15 @@ namespace OnlineBookShop.Server.DTOs
         public string Password { get; set; } = null!;
     }
 
+    public class ExternalLoginDto
+    {
+        [Required, MaxLength(20)]
+        public string Provider { get; set; } = null!;
+
+        [Required]
+        public string Token { get; set; } = null!;
+    }
+
     public class UserResponseDto
     {
         public int UserId { get; set; }

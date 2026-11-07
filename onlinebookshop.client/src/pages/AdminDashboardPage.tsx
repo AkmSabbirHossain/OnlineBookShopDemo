@@ -179,6 +179,7 @@ export default function AdminDashboardPage() {
     const [processingVendorId, setProcessingVendorId] = useState<number | null>(null);
     const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
     const [addingCategory, setAddingCategory] = useState(false);
+    const [updatingCategoryId, setUpdatingCategoryId] = useState<number | null>(null);
     const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
     const [addingBanner, setAddingBanner] = useState(false);
     const [savingAuthor, setSavingAuthor] = useState(false);
@@ -418,6 +419,30 @@ export default function AdminDashboardPage() {
             }
         } finally {
             setAddingCategory(false);
+        }
+    };
+
+
+    // ── Update Category ──
+    const handleUpdateCategory = async (categoryId: number, name: string, imageUrl?: string) => {
+        setUpdatingCategoryId(categoryId);
+        try {
+            await AdminService.updateCategory(categoryId, { name, imageUrl });
+            setCategories((prev) =>
+                prev.map((c) => (c.categoryId === categoryId ? { ...c, name, imageUrl } : c))
+            );
+            showToast(`Category "${name}" updated! ✏️`);
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                showToast(
+                    err.response?.data?.message || "There is problem to update category",
+                    "danger"
+                );
+            } else {
+                showToast("Something went wrong.", "danger");
+            }
+        } finally {
+            setUpdatingCategoryId(null);
         }
     };
 
@@ -1417,8 +1442,10 @@ export default function AdminDashboardPage() {
                                 <CategoryManager
                                     categories={categories}
                                     onAdd={handleAddCategory}
+                                    onUpdate={handleUpdateCategory}
                                     onDelete={handleDeleteCategory}
                                     deletingId={deletingCategoryId}
+                                    updatingId={updatingCategoryId}
                                     adding={addingCategory}
                                 />
                             )}

@@ -56,6 +56,11 @@ const AdminService = {
         return res.data;
     },
 
+    // ── Update Category ──
+    updateCategory: async (categoryId: number, dto: CategoryCreateDto): Promise<void> => {
+        await axiosInstance.put(`/Category/${categoryId}`, dto);
+    },
+
     // ── Delete Category ──
     deleteCategory: async (categoryId: number): Promise<void> => {
         await axiosInstance.delete(`/Category/${categoryId}`);

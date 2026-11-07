@@ -96,6 +96,9 @@ export const en = {
     "footer.delivery": "Fast Nationwide Delivery",
     "footer.secure": "Secure Checkout",
     "footer.returns": "7-Day Easy Returns",
+    "footer.cod": "Cash on Delivery",
+    "footer.verifiedVendors": "Verified Vendors",
+    "footer.backToTop": "Back to top",
     "footer.rights": "All rights reserved.",
     "footer.developedBy": "Developed by Md Sabbir Hossain",
 
@@ -210,6 +213,25 @@ export const en = {
     "card.outOfStockAria": "{title} is out of stock",
     "card.maxedAria":
         "{title} is already at the maximum quantity in your cart",
+
+    "wishlist.title": "My Wishlist",
+    "wishlist.subtitle": "Books you saved for later.",
+    "wishlist.count": "{count} saved books",
+    "wishlist.browse": "Browse books",
+    "wishlist.loading": "Loading your wishlist…",
+    "wishlist.emptyTitle": "Your wishlist is empty",
+    "wishlist.emptyText":
+        "Tap the heart on any book to save it here and revisit it anytime.",
+    "wishlist.emptyCta": "Explore books",
+    "wishlist.signInTitle": "Sign in to see your wishlist",
+    "wishlist.signInText":
+        "Your saved books are tied to your account. Sign in to pick up where you left off.",
+    "wishlist.signInCta": "Sign in",
+    "wishlist.remove": "Remove {title} from wishlist",
+    "wishlist.addedToast": "Added to cart",
+    "wishlist.removedToast": "Removed from wishlist",
+    "wishlist.addError": "Could not add to cart. Please try again.",
+    "wishlist.removeError": "Could not remove the book. Please try again.",
 
     "creator.writer": "Writer",
     "creator.publisher": "Publisher",
@@ -448,6 +470,9 @@ export const bn: Record<TranslationKey, string> = {
     "footer.delivery": "সারাদেশে দ্রুত ডেলিভারি",
     "footer.secure": "নিরাপদ চেকআউট",
     "footer.returns": "৭ দিনে সহজ রিটার্ন",
+    "footer.cod": "ক্যাশ অন ডেলিভারি",
+    "footer.verifiedVendors": "যাচাইকৃত বিক্রেতা",
+    "footer.backToTop": "উপরে যান",
     "footer.rights": "সর্বস্বত্ব সংরক্ষিত।",
     "footer.developedBy": "ডেভেলপার: মো. সব্বির হোসেন",
 
@@ -561,6 +586,25 @@ export const bn: Record<TranslationKey, string> = {
     "card.addToCart": "{title} কার্টে যোগ করুন",
     "card.outOfStockAria": "{title} স্টকে নেই",
     "card.maxedAria": "{title} ইতিমধ্যে কার্টে সর্বোচ্চ পরিমাণে আছে",
+
+    "wishlist.title": "আমার পছন্দের তালিকা",
+    "wishlist.subtitle": "পরে পড়ার জন্য সংরক্ষিত বই।",
+    "wishlist.count": "{count}টি বই সংরক্ষিত",
+    "wishlist.browse": "বই দেখুন",
+    "wishlist.loading": "পছন্দের তালিকা লোড হচ্ছে…",
+    "wishlist.emptyTitle": "আপনার পছন্দের তালিকা খালি",
+    "wishlist.emptyText":
+        "যেকোনো বইয়ের হার্ট আইকনে চাপ দিয়ে বইটি এখানে সংরক্ষণ করুন, পরে সহজেই খুঁজে পাবেন।",
+    "wishlist.emptyCta": "বই ঘুরে দেখুন",
+    "wishlist.signInTitle": "পছন্দের তালিকা দেখতে সাইন ইন করুন",
+    "wishlist.signInText":
+        "সংরক্ষিত বইগুলো আপনার অ্যাকাউন্টের সাথে যুক্ত। সাইন ইন করে দেখুন।",
+    "wishlist.signInCta": "সাইন ইন",
+    "wishlist.remove": "{title} পছন্দের তালিকা থেকে সরান",
+    "wishlist.addedToast": "কার্টে যোগ হয়েছে",
+    "wishlist.removedToast": "পছন্দের তালিকা থেকে সরানো হয়েছে",
+    "wishlist.addError": "কার্টে যোগ করা যায়নি। আবার চেষ্টা করুন।",
+    "wishlist.removeError": "বইটি সরানো যায়নি। আবার চেষ্টা করুন।",
 
     "creator.writer": "লেখক",
     "creator.publisher": "প্রকাশক",

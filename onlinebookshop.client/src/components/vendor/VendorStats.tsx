@@ -1,8 +1,9 @@
-﻿// =============================================
-// VendorStats.tsx — Summary cards
+// =============================================
+// VendorStats.tsx — Inventory KPI cards
 // =============================================
 
 import type { BookResponseDto } from "../../types/book.types";
+import { formatTaka } from "./vendorUtils";
 
 interface Props {
     books: BookResponseDto[];
@@ -10,67 +11,59 @@ interface Props {
 
 export default function VendorStats({ books }: Props) {
     const totalBooks = books.length;
-    const totalStock = books.reduce((sum, b) => sum + b.stock, 0);
+    const liveBooks = books.filter((b) => b.isActive).length;
+    const lowStock = books.filter(
+        (b) => b.stock > 0 && b.stock <= (b.lowStockThreshold ?? 5)
+    ).length;
     const outOfStock = books.filter((b) => b.stock === 0).length;
-    const avgPrice =
-        books.length > 0
-            ? books.reduce((sum, b) => sum + b.price, 0) / books.length
-            : 0;
+    const inventoryValue = books.reduce((sum, b) => {
+        const unit = b.discountPrice && b.discountPrice < b.price ? b.discountPrice : b.price;
+        return sum + unit * b.stock;
+    }, 0);
 
     const stats = [
         {
-            label: "Total Books",
-            value: totalBooks,
-            icon: "bi-book",
-            color: "primary",
-            suffix: "",
+            label: "Total titles",
+            value: totalBooks.toString(),
+            sub: `${liveBooks} live on storefront`,
+            icon: "bi-book-half",
+            tone: "tone-navy",
         },
         {
-            label: "Total Stock",
-            value: totalStock,
-            icon: "bi-boxes",
-            color: "success",
-            suffix: " pcs",
+            label: "Inventory value",
+            value: formatTaka(inventoryValue),
+            sub: "At current selling price",
+            icon: "bi-box-seam",
+            tone: "tone-green",
         },
         {
-            label: "Out of Stock",
-            value: outOfStock,
+            label: "Low stock",
+            value: lowStock.toString(),
+            sub: lowStock > 0 ? "Restock to keep selling" : "All titles healthy",
             icon: "bi-exclamation-triangle",
-            color: outOfStock > 0 ? "danger" : "secondary",
-            suffix: "",
+            tone: lowStock > 0 ? "tone-amber" : "tone-slate",
         },
         {
-            label: "Avg. Price",
-            value: `৳ ${avgPrice.toFixed(0)}`,
-            icon: "bi-tag",
-            color: "warning",
-            suffix: "",
+            label: "Out of stock",
+            value: outOfStock.toString(),
+            sub: outOfStock > 0 ? "Hidden from buyers" : "Nothing sold out",
+            icon: "bi-slash-circle",
+            tone: outOfStock > 0 ? "tone-red" : "tone-slate",
         },
     ];
 
     return (
-        <div className="row g-3 mb-4">
+        <div className="vp-kpi-grid">
             {stats.map((s) => (
-                <div key={s.label} className="col-6 col-md-3">
-                    <div className={`card border-0 shadow-sm rounded-3 border-start border-4 border-${s.color}`}>
-                        <div className="card-body py-3 px-3">
-                            <div className="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <p className="text-muted small mb-1">{s.label}</p>
-                                    <h4 className="fw-bold mb-0">
-                                        {s.value}
-                                        {s.suffix}
-                                    </h4>
-                                </div>
-                                <div
-                                    className={`rounded-circle bg-${s.color} bg-opacity-10 d-flex align-items-center justify-content-center`}
-                                    style={{ width: "46px", height: "46px" }}
-                                >
-                                    <i className={`bi ${s.icon} text-${s.color} fs-5`}></i>
-                                </div>
-                            </div>
-                        </div>
+                <div className="vp-kpi" key={s.label}>
+                    <div className="vp-kpi-top">
+                        <span className={`vp-kpi-icon ${s.tone}`}>
+                            <i className={`bi ${s.icon}`}></i>
+                        </span>
                     </div>
+                    <p className="vp-kpi-label">{s.label}</p>
+                    <p className="vp-kpi-value">{s.value}</p>
+                    <p className="vp-kpi-sub">{s.sub}</p>
                 </div>
             ))}
         </div>

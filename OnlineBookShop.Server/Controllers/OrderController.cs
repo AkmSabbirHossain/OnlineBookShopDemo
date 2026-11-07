@@ -78,14 +78,26 @@ namespace OnlineBookShop.Server.Controllers
         [Authorize(Roles = "Vendor,Admin")]
         public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] OrderStatusUpdateDto dto)
         {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized();
+
             try
             {
-                await _orderService.UpdateOrderStatusAsync(orderId, dto.NewStatus);
+                if (User.IsInRole("Admin"))
+                    await _orderService.UpdateOrderStatusAsync(orderId, dto.NewStatus);
+                else
+                    await _orderService.UpdateOrderStatusForVendorAsync(orderId, userId.Value, dto.NewStatus);
+
                 return Ok(new { Message = $"Order {orderId} status updated to {dto.NewStatus}" });
             }
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { Error = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { Error = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -133,6 +145,9 @@ namespace OnlineBookShop.Server.Controllers
 
             if (!vendor.IsApproved)
                 return Forbid();
+
+            if (!vendor.IsActive)
+                return StatusCode(403, new { message = "Your account has been suspended by the Admin." });
 
             var orders = await _orderService.GetVendorOrdersAsync(vendor.VendorId);
             return Ok(orders);

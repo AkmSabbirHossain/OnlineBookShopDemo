@@ -1,280 +1,242 @@
-﻿import React, { useEffect, useState } from "react";
-import VendorPayoutService from "../../services/VendorPayout.service";
-import type { VendorEarning, VendorPayout } from "../../types/vendorPayout.types";
-import VendorService from "../../services/vendor.service";
+// =============================================
+// VendorEarningsPage.tsx — Earnings & payouts
+// =============================================
 
-export default function VendorEarningsPage() {
-    const [vendorId, setVendorId] = useState<number | null>(null);
+import { useCallback, useEffect, useState } from "react";
+import VendorPayoutService from "../../services/VendorPayout.service";
+import VendorService from "../../services/vendor.service";
+import type { VendorEarning, VendorPayout } from "../../types/vendorPayout.types";
+import { formatDate, formatTaka2 } from "./vendorUtils";
+
+interface Props {
+    vendorId?: number;
+}
+
+function payoutTone(status: string) {
+    const value = status.toLowerCase();
+    if (value === "completed" || value === "success" || value === "paid") return "delivered";
+    if (value === "pending") return "pending";
+    return "cancelled";
+}
+
+export default function VendorEarningsPage({ vendorId }: Props) {
     const [earnings, setEarnings] = useState<VendorEarning[]>([]);
     const [history, setHistory] = useState<VendorPayout[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const id = vendorId ?? (await VendorService.getMyProfile()).vendorId;
+            const [earningsData, historyData] = await Promise.all([
+                VendorPayoutService.getVendorPendingEarnings(id),
+                VendorPayoutService.getPayoutHistory(id),
+            ]);
+            setEarnings(earningsData);
+            setHistory(historyData);
+        } catch {
+            setError("Could not load earnings. Please retry.");
+        } finally {
+            setLoading(false);
+        }
+    }, [vendorId]);
+
     useEffect(() => {
-        const load = async () => {
-            setLoading(true);
-            try {
-                const vendor = await VendorService.getMyProfile();
-                setVendorId(vendor.vendorId);
-                const [earningsData, historyData] = await Promise.all([
-                    VendorPayoutService.getVendorPendingEarnings(vendor.vendorId),
-                    VendorPayoutService.getPayoutHistory(vendor.vendorId),
-                ]);
-                setEarnings(earningsData);
-                setHistory(historyData);
-            } catch {
-                setError("Data does not load. Try again।");
-            } finally {
-                setLoading(false);
-            }
-        };
         load();
-    }, []);
+    }, [load]);
+
+    if (loading) {
+        return (
+            <div className="vp-kpi-grid">
+                {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="vp-skeleton" style={{ height: 116 }}></div>
+                ))}
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="vp-alert danger">
+                <i className="bi bi-exclamation-octagon"></i>
+                <div>
+                    <strong>Earnings unavailable</strong>
+                    <p>{error}</p>
+                </div>
+                <button type="button" className="vp-btn vp-btn-sm" onClick={load}>
+                    Retry
+                </button>
+            </div>
+        );
+    }
 
     const pendingTotal = earnings.reduce((sum, e) => sum + e.netAmount, 0);
-    const paidTotal = history
-        .filter((p) => p.status.toLowerCase() === "completed" || p.status.toLowerCase() === "success")
-        .reduce((sum, p) => sum + p.amount, 0);
+    const paidPayouts = history.filter((p) => {
+        const status = p.status.toLowerCase();
+        return status === "completed" || status === "success" || status === "paid";
+    });
+    const paidTotal = paidPayouts.reduce((sum, p) => sum + p.amount, 0);
 
-    if (loading)
-        return (
-            <div className="d-flex flex-column align-items-center justify-content-center" style={{ minHeight: "60vh" }}>
-                <div
-                    className="spinner-border"
-                    role="status"
-                    style={{ width: "3rem", height: "3rem", color: "#8b5cf6" }}
-                />
-                <h5 className="mt-3 text-muted">Loading...</h5>
-            </div>
-        );
-
-    if (error)
-        return (
-            <div className="container mt-4">
-                <div className="alert alert-danger shadow-sm rounded-4 border-0">{error}</div>
-            </div>
-        );
-
-    if (!vendorId)
-        return (
-            <div className="text-center mt-5 text-muted">
-                <h5>Does not found v`````````endor profile </h5>
-            </div>
-        );
+    const kpis = [
+        {
+            label: "Pending balance",
+            value: formatTaka2(pendingTotal),
+            sub: `${earnings.length} unsettled line${earnings.length !== 1 ? "s" : ""}`,
+            icon: "bi-hourglass-split",
+            tone: "tone-amber",
+        },
+        {
+            label: "Total paid out",
+            value: formatTaka2(paidTotal),
+            sub: `${paidPayouts.length} completed payout${paidPayouts.length !== 1 ? "s" : ""}`,
+            icon: "bi-cash-coin",
+            tone: "tone-green",
+        },
+        {
+            label: "Commission rate",
+            value: "10%",
+            sub: "Deducted per item sold",
+            icon: "bi-percent",
+            tone: "tone-navy",
+        },
+        {
+            label: "Payout history",
+            value: history.length.toString(),
+            sub: "All requests",
+            icon: "bi-receipt",
+            tone: "tone-slate",
+        },
+    ];
 
     return (
-        <div className="container mt-5 mb-5">
-            <div
-                className="p-4 p-md-5 rounded-4 shadow-lg"
-                style={{
-                    background: "linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)",
-                    border: "1px solid rgba(139, 92, 246, 0.1)",
-                }}
-            >
-                {/* Header */}
-                <div className="d-flex align-items-center gap-3 mb-4 pb-3" style={{ borderBottom: "2px solid rgba(139,92,246,0.15)" }}>
-                    <div
-                        className="d-flex align-items-center justify-content-center rounded-circle"
-                        style={{
-                            width: 48,
-                            height: 48,
-                            background: "linear-gradient(135deg, #8b5cf6 0%, #14b8a6 100%)",
-                            fontSize: "22px",
-                        }}
+        <>
+            <div className="vp-kpi-grid">
+                {kpis.map((k) => (
+                    <div className="vp-kpi" key={k.label}>
+                        <div className="vp-kpi-top">
+                            <span className={`vp-kpi-icon ${k.tone}`}>
+                                <i className={`bi ${k.icon}`}></i>
+                            </span>
+                        </div>
+                        <p className="vp-kpi-label">{k.label}</p>
+                        <p className="vp-kpi-value">{k.value}</p>
+                        <p className="vp-kpi-sub">{k.sub}</p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="vp-card" style={{ marginBottom: 16 }}>
+                <div className="vp-card-head">
+                    <h3 className="vp-card-title">
+                        <i className="bi bi-wallet2"></i>
+                        Pending earnings
+                        <span className="vp-count">{earnings.length}</span>
+                    </h3>
+                    <button
+                        type="button"
+                        className="vp-btn vp-btn-sm"
+                        onClick={load}
+                        title="Refresh earnings"
                     >
-                        💰
-                    </div>
-                    <h2 className="mb-0 fw-bold" style={{ color: "#1e1b2e" }}>
-                       My Earning
-                    </h2>
-                </div>
-
-                {/* Summary Cards */}
-                <div className="row g-3 mb-5">
-                    <div className="col-12 col-md-6">
-                        <div
-                            className="p-4 rounded-4 shadow-sm h-100 position-relative overflow-hidden"
-                            style={{
-                                background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
-                                color: "#fff",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    position: "absolute",
-                                    top: -30,
-                                    right: -30,
-                                    width: 120,
-                                    height: 120,
-                                    borderRadius: "50%",
-                                    background: "rgba(255,255,255,0.08)",
-                                }}
-                            />
-                            <p
-                                className="mb-1 text-uppercase fw-semibold"
-                                style={{ letterSpacing: "1px", fontSize: "13px", opacity: 0.85 }}
-                            >
-                                Pending Balance
-                            </p>
-                            <h1 className="mb-0 fw-bold">৳{pendingTotal.toFixed(2)}</h1>
-                        </div>
-                    </div>
-                    <div className="col-12 col-md-6">
-                        <div
-                            className="p-4 rounded-4 shadow-sm h-100 position-relative overflow-hidden"
-                            style={{
-                                background: "linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)",
-                                color: "#fff",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    position: "absolute",
-                                    top: -30,
-                                    right: -30,
-                                    width: 120,
-                                    height: 120,
-                                    borderRadius: "50%",
-                                    background: "rgba(255,255,255,0.08)",
-                                }}
-                            />
-                            <p
-                                className="mb-1 text-uppercase fw-semibold"
-                                style={{ letterSpacing: "1px", fontSize: "13px", opacity: 0.85 }}
-                            >
-                                Total Paid
-                            </p>
-                            <h1 className="mb-0 fw-bold">৳{paidTotal.toFixed(2)}</h1>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Pending Earnings Section */}
-                <div className="d-flex align-items-center gap-2 mb-3">
-                    <span
-                        style={{
-                            width: 6,
-                            height: 22,
-                            borderRadius: 4,
-                            background: "linear-gradient(180deg, #8b5cf6, #14b8a6)",
-                        }}
-                    />
-                    <h4 className="mb-0 fw-semibold" style={{ color: "#1e1b2e" }}>
-                        Pending Earnings
-                    </h4>
+                        <i className="bi bi-arrow-clockwise"></i>
+                        Refresh
+                    </button>
                 </div>
 
                 {earnings.length === 0 ? (
-                    <div
-                        className="text-center text-muted rounded-4 py-4 mb-5"
-                        style={{ background: "rgba(139,92,246,0.05)" }}
-                    >
-                        <p className="mb-0 fst-italic">There is no pending earning</p>
+                    <div className="vp-empty">
+                        <div className="vp-empty-icon">
+                            <i className="bi bi-wallet2"></i>
+                        </div>
+                        <h4>No pending earnings</h4>
+                        <p>Earnings appear after a delivered order is settled.</p>
                     </div>
                 ) : (
-                    <div className="table-responsive mb-5 rounded-4 shadow-sm" style={{ overflow: "hidden" }}>
-                        <table className="table table-hover align-middle mb-0">
+                    <div className="vp-table-wrap">
+                        <table className="vp-table" style={{ minWidth: 520 }}>
                             <thead>
-                                <tr style={{ background: "linear-gradient(135deg, #f3e8ff 0%, #e6fffa 100%)" }}>
-                                    <th scope="col" className="border-0 py-3 ps-4">Order Item</th>
-                                    <th scope="col" className="border-0 py-3">Net Amount</th>
-                                    <th scope="col" className="border-0 py-3">Date</th>
+                                <tr>
+                                    <th>Order item</th>
+                                    <th>Net amount</th>
+                                    <th>Earned on</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {earnings.map((e) => (
-                                    <tr key={e.vendorEarningId}>
-                                        <td className="fw-medium ps-4">#{e.orderItemId}</td>
-                                        <td className="fw-bold" style={{ color: "#8b5cf6" }}>
-                                            ৳{e.netAmount.toFixed(2)}
+                                {earnings.map((earning) => (
+                                    <tr key={earning.vendorEarningId}>
+                                        <td>
+                                            <span style={{ fontWeight: 700, color: "#16233d" }}>
+                                                #{earning.orderItemId}
+                                            </span>
                                         </td>
-                                        <td className="text-muted">{new Date(e.earnedAt).toLocaleDateString()}</td>
+                                        <td>
+                                            <span style={{ fontWeight: 800, color: "#0f9d58" }}>
+                                                {formatTaka2(earning.netAmount)}
+                                            </span>
+                                        </td>
+                                        <td>{formatDate(earning.earnedAt)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
                 )}
+            </div>
 
-                {/* Payout History Section */}
-                <div className="d-flex align-items-center gap-2 mb-3">
-                    <span
-                        style={{
-                            width: 6,
-                            height: 22,
-                            borderRadius: 4,
-                            background: "linear-gradient(180deg, #8b5cf6, #14b8a6)",
-                        }}
-                    />
-                    <h4 className="mb-0 fw-semibold" style={{ color: "#1e1b2e" }}>
-                        Payout History
-                    </h4>
+            <div className="vp-card">
+                <div className="vp-card-head">
+                    <h3 className="vp-card-title">
+                        <i className="bi bi-clock-history"></i>
+                        Payout history
+                        <span className="vp-count">{history.length}</span>
+                    </h3>
                 </div>
 
                 {history.length === 0 ? (
-                    <div
-                        className="text-center text-muted rounded-4 py-4"
-                        style={{ background: "rgba(20,184,166,0.05)" }}
-                    >
-                        <p className="mb-0 fst-italic">No payout yet</p>
+                    <div className="vp-empty">
+                        <div className="vp-empty-icon">
+                            <i className="bi bi-receipt"></i>
+                        </div>
+                        <h4>No payouts yet</h4>
+                        <p>Payouts issued by the platform will be listed here.</p>
                     </div>
                 ) : (
-                    <div className="table-responsive rounded-4 shadow-sm" style={{ overflow: "hidden" }}>
-                        <table className="table table-hover align-middle mb-0">
+                    <div className="vp-table-wrap">
+                        <table className="vp-table" style={{ minWidth: 620 }}>
                             <thead>
-                                <tr style={{ background: "linear-gradient(135deg, #f3e8ff 0%, #e6fffa 100%)" }}>
-                                    <th scope="col" className="border-0 py-3 ps-4">Amount</th>
-                                    <th scope="col" className="border-0 py-3">Status</th>
-                                    <th scope="col" className="border-0 py-3">Paid At</th>
-                                    <th scope="col" className="border-0 py-3 pe-4">Reference</th>
+                                <tr>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Paid at</th>
+                                    <th>Reference</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {history.map((p) => {
-                                    const statusLower = p.status.toLowerCase();
-                                    let badgeStyle: React.CSSProperties = {
-                                        fontSize: "12px",
-                                        padding: "6px 14px",
-                                        fontWeight: 600,
-                                        letterSpacing: "0.3px",
-                                    };
-                                    if (statusLower === "completed" || statusLower === "success") {
-                                        badgeStyle = {
-                                            ...badgeStyle,
-                                            background: "linear-gradient(135deg, #14b8a6, #0d9488)",
-                                            color: "#fff",
-                                        };
-                                    } else if (statusLower === "pending") {
-                                        badgeStyle = {
-                                            ...badgeStyle,
-                                            background: "linear-gradient(135deg, #fbbf24, #f59e0b)",
-                                            color: "#1e1b2e",
-                                        };
-                                    } else {
-                                        badgeStyle = {
-                                            ...badgeStyle,
-                                            background: "linear-gradient(135deg, #f87171, #ef4444)",
-                                            color: "#fff",
-                                        };
-                                    }
-                                    return (
-                                        <tr key={p.vendorPayoutId}>
-                                            <td className="fw-bold ps-4">৳{p.amount.toFixed(2)}</td>
-                                            <td>
-                                                <span className="badge rounded-pill" style={badgeStyle}>
-                                                    {p.status}
-                                                </span>
-                                            </td>
-                                            <td className="text-muted">{new Date(p.paidAt).toLocaleDateString()}</td>
-                                            <td className="text-muted pe-4">{p.transactionReference || "-"}</td>
-                                        </tr>
-                                    );
-                                })}
+                                {history.map((payout) => (
+                                    <tr key={payout.vendorPayoutId}>
+                                        <td>
+                                            <span style={{ fontWeight: 800, color: "#16233d" }}>
+                                                {formatTaka2(payout.amount)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`vp-pill ${payoutTone(payout.status)}`}>
+                                                {payout.status}
+                                            </span>
+                                        </td>
+                                        <td>{formatDate(payout.paidAt)}</td>
+                                        <td className="vp-cell-sub">
+                                            {payout.transactionReference || "—"}
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
                 )}
             </div>
-        </div>
+        </>
     );
 }

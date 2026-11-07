@@ -1,9 +1,10 @@
-﻿// =============================================
-// BookTable.tsx — Vendor books table
+// =============================================
+// BookTable.tsx — Vendor inventory table
 // =============================================
 
-import type { BookResponseDto } from "../../types/book.types";
-import type { CategoryResponseDto } from "../../types/admin.types";
+import { useMemo, useState } from "react";
+import type { BookResponseDto, CategoryResponseDto } from "../../types/book.types";
+import { formatDate, formatTaka2, PLACEHOLDER_COVER } from "./vendorUtils";
 
 interface Props {
     books: BookResponseDto[];
@@ -17,8 +18,7 @@ interface Props {
     statusUpdatingId: number | null;
 }
 
-
-const PLACEHOLDER_IMG = "https://placehold.co/50x65?text=Book";
+type StockFilter = "all" | "active" | "hidden" | "low";
 
 export default function BookTable({
     books,
@@ -31,171 +31,311 @@ export default function BookTable({
     onToggleStatus,
     statusUpdatingId,
 }: Props) {
-    const filtered = books.filter(
-        (b) =>
-            b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            b.author.toLowerCase().includes(searchQuery.toLowerCase())
+    const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+    const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+    const counts = useMemo(
+        () => ({
+            all: books.length,
+            active: books.filter((b) => b.isActive).length,
+            hidden: books.filter((b) => !b.isActive).length,
+            low: books.filter((b) => b.stock <= (b.lowStockThreshold ?? 5)).length,
+        }),
+        [books]
     );
 
+    const filtered = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return books.filter((b) => {
+            const matchesQuery =
+                !query ||
+                b.title.toLowerCase().includes(query) ||
+                b.author.toLowerCase().includes(query);
+            const matchesCategory =
+                categoryFilter === "all" || b.categoryId === Number(categoryFilter);
+            const matchesStock =
+                stockFilter === "all" ||
+                (stockFilter === "active" && b.isActive) ||
+                (stockFilter === "hidden" && !b.isActive) ||
+                (stockFilter === "low" && b.stock <= (b.lowStockThreshold ?? 5));
+            return matchesQuery && matchesCategory && matchesStock;
+        });
+    }, [books, searchQuery, categoryFilter, stockFilter]);
+
+    const chips: { id: StockFilter; label: string }[] = [
+        { id: "all", label: "All" },
+        { id: "active", label: "Live" },
+        { id: "hidden", label: "Hidden" },
+        { id: "low", label: "Low stock" },
+    ];
+
     return (
-        <div className="card border-0 shadow-sm rounded-3">
-            <div className="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <h6 className="fw-bold mb-0">
-                    <i className="bi bi-book me-2 text-primary"></i>
-                    My Books
-                    <span className="badge bg-primary ms-2 rounded-pill">{books.length}</span>
-                </h6>
-                {/* Search */}
-                <div className="input-group input-group-sm" style={{ maxWidth: "280px" }}>
-                    <span className="input-group-text">
+        <div className="vp-card">
+            <div className="vp-card-head">
+                <h3 className="vp-card-title">
+                    <i className="bi bi-book-half"></i>
+                    My books
+                    <span className="vp-count">{books.length}</span>
+                </h3>
+
+                <div className="vp-filters">
+                    <div className="vp-search" style={{ width: 220 }}>
                         <i className="bi bi-search"></i>
-                    </span>
-                    <input
-                        type="search"
-                        className="form-control"
-                        placeholder="Search books..."
-                        value={searchQuery}
-                        onChange={(e) => onSearchChange(e.target.value)}
-                    />
+                        <input
+                            className="vp-input"
+                            type="search"
+                            placeholder="Search title or author"
+                            value={searchQuery}
+                            onChange={(e) => onSearchChange(e.target.value)}
+                            aria-label="Search books"
+                        />
+                    </div>
+                    <select
+                        className="vp-select"
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        aria-label="Filter by category"
+                    >
+                        <option value="all">All categories</option>
+                        {categories.map((c) => (
+                            <option key={c.categoryId} value={c.categoryId}>
+                                {c.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
-            <div className="card-body p-0">
-                {filtered.length === 0 ? (
-                    <div className="text-center py-5">
-                        <div style={{ fontSize: "50px" }}>📭</div>
-                        <p className="text-muted mt-2">
-                            {searchQuery ? "No books match your search." : "No books added yet."}
-                        </p>
+            <div
+                className="vp-filters"
+                style={{ padding: "12px 18px", borderBottom: "1px solid #e6ebf2" }}
+            >
+                {chips.map((chip) => (
+                    <button
+                        key={chip.id}
+                        type="button"
+                        className={`vp-chip ${stockFilter === chip.id ? "active" : ""}`}
+                        onClick={() => setStockFilter(chip.id)}
+                    >
+                        {chip.label}
+                        <span className="count">{counts[chip.id]}</span>
+                    </button>
+                ))}
+            </div>
+
+            {filtered.length === 0 ? (
+                <div className="vp-empty">
+                    <div className="vp-empty-icon">
+                        <i className="bi bi-journal-x"></i>
                     </div>
-                ) : (
-                    <div className="table-responsive">
-                        <table className="table table-hover align-middle mb-0">
-                            <thead className="table-light">
-                                <tr>
-                                    <th style={{ width: "60px" }}></th>
-                                    <th>Title / Author</th>
-                                    <th>Category</th>
-                                    <th>Price</th>
-                                    <th>Publication</th>
-                                    <th>Edition</th>                                 
-                                    <th>Stock</th>
-                                    <th>Status</th>
-                                    <th>Added</th>
-                                    <th className="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((book) => (
+                    <h4>{books.length === 0 ? "No books yet" : "No matches"}</h4>
+                    <p>
+                        {books.length === 0
+                            ? "Add your first title to start selling."
+                            : "Try a different search, category or filter."}
+                    </p>
+                </div>
+            ) : (
+                <div className="vp-table-wrap">
+                    <table className="vp-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 56 }}></th>
+                                <th>Title / Author</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Visibility</th>
+                                <th>Added</th>
+                                <th style={{ textAlign: "right" }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.map((book) => {
+                                const threshold = book.lowStockThreshold ?? 5;
+                                const hasDiscount =
+                                    book.discountPrice != null && book.discountPrice < book.price;
+                                const stockPct = Math.min(
+                                    100,
+                                    Math.round((book.stock / Math.max(threshold * 4, 1)) * 100)
+                                );
+                                const stockColor =
+                                    book.stock === 0
+                                        ? "#dc2626"
+                                        : book.stock <= threshold
+                                          ? "#f59e0b"
+                                          : "#0f9d58";
+
+                                return (
                                     <tr key={book.bookId}>
-                                        {/* Cover */}
                                         <td>
                                             <img
-                                                src={book.imageUrl || PLACEHOLDER_IMG}
+                                                className="vp-cover"
+                                                src={book.imageUrl || PLACEHOLDER_COVER}
                                                 alt={book.title}
-                                                className="rounded"
-                                                style={{ width: "40px", height: "52px", objectFit: "cover" }}
-                                                onError={(e) => (e.currentTarget.src = PLACEHOLDER_IMG)}
+                                                loading="lazy"
+                                                onError={(e) =>
+                                                    (e.currentTarget.src = PLACEHOLDER_COVER)
+                                                }
                                             />
                                         </td>
-
-                                        {/* Title / Author */}
                                         <td>
-                                            <p className="fw-semibold mb-0 text-truncate" style={{ maxWidth: "200px" }}>
+                                            <p className="vp-cell-title" title={book.title}>
                                                 {book.title}
                                             </p>
-                                            <small className="text-muted">{book.author}</small>
+                                            <p className="vp-cell-sub">
+                                                {book.author}
+                                                {book.isFeatured && (
+                                                    <span
+                                                        className="vp-pill delivered"
+                                                        style={{ marginLeft: 6 }}
+                                                    >
+                                                        <i className="bi bi-star-fill"></i>
+                                                        Featured
+                                                    </span>
+                                                )}
+                                            </p>
                                         </td>
-
-                                    
-                                        {/* Category */}
                                         <td>
-                                            <span className="badge bg-secondary-subtle text-secondary-emphasis">
-                                                {categories.find((c) => c.categoryId === book.categoryId)?.name ?? `#${book.categoryId}`}
+                                            <span className="vp-pill neutral">
+                                                {categories.find(
+                                                    (c) => c.categoryId === book.categoryId
+                                                )?.name ?? `#${book.categoryId}`}
                                             </span>
                                         </td>
-
-                                        {/* Price */}
-                                        <td className="fw-semibold text-dark">
-                                            ৳ {book.price.toFixed(2)}
-                                        </td>
-                                        {/* publisher */}
-                                        <td className="fw-semibold text-dark">
-                                            {book.publisher}
-                                        </td>
-                                        {/* edition */}
-                                        <td className="fw-semibold text-dark">
-                                             {book.edition}
-                                        </td>
-                                    
-                                        {/* Stock */}
                                         <td>
-                                            <span
-                                                className={`badge ${book.stock === 0
-                                                        ? "bg-danger"
-                                                        : book.stock <= (book.lowStockThreshold ?? 5)
-                                                            ? "bg-warning text-dark"
-                                                            : "bg-success"
-                                                    }`}
+                                            {hasDiscount ? (
+                                                <div>
+                                                    <p
+                                                        style={{
+                                                            margin: 0,
+                                                            fontWeight: 700,
+                                                            color: "#16233d",
+                                                        }}
+                                                    >
+                                                        {formatTaka2(book.discountPrice!)}
+                                                    </p>
+                                                    <p
+                                                        className="vp-cell-sub"
+                                                        style={{
+                                                            textDecoration: "line-through",
+                                                        }}
+                                                    >
+                                                        {formatTaka2(book.price)}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <span style={{ fontWeight: 700, color: "#16233d" }}>
+                                                    {formatTaka2(book.price)}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <div className="vp-stock">
+                                                <div className="vp-stock-bar">
+                                                    <span
+                                                        style={{
+                                                            width: `${stockPct}%`,
+                                                            background: stockColor,
+                                                        }}
+                                                    ></span>
+                                                </div>
+                                                <span className="vp-stock-num">
+                                                    {book.stock === 0
+                                                        ? "Out"
+                                                        : `${book.stock} pcs`}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    alignItems: "flex-start",
+                                                    gap: 5,
+                                                }}
                                             >
-                                                {book.stock === 0 ? "Out of Stock" : `${book.stock} pcs`}
-                                            </span>
-                                        </td>
-
-                                        {/* Status */}
-                                        <td>
-                                            <div className="d-flex flex-column align-items-start gap-1">
                                                 <button
                                                     type="button"
-                                                    className={`badge border-0 ${book.isActive
-                                                            ? "bg-success-subtle text-success-emphasis"
-                                                            : "bg-secondary-subtle text-secondary-emphasis"
-                                                        }`}
-                                                    onClick={() => onToggleStatus(book, { isActive: !book.isActive })}
+                                                    className={`vp-pill ${book.isActive ? "delivered" : "neutral"}`}
+                                                    style={{ border: 0, cursor: "pointer" }}
+                                                    onClick={() =>
+                                                        onToggleStatus(book, {
+                                                            isActive: !book.isActive,
+                                                        })
+                                                    }
                                                     disabled={statusUpdatingId === book.bookId}
-                                                    title={book.isActive ? "Hide from storefront" : "Show in storefront"}
+                                                    title={
+                                                        book.isActive
+                                                            ? "Hide from storefront"
+                                                            : "Show in storefront"
+                                                    }
                                                 >
-                                                    <i className={`bi ${book.isActive ? "bi-eye" : "bi-eye-slash"} me-1`}></i>
-                                                    {book.isActive ? "Active" : "Inactive"}
+                                                    {statusUpdatingId === book.bookId ? (
+                                                        <span className="spinner-border spinner-border-sm" />
+                                                    ) : (
+                                                        <i
+                                                            className={`bi ${book.isActive ? "bi-eye" : "bi-eye-slash"}`}
+                                                        ></i>
+                                                    )}
+                                                    {book.isActive ? "Live" : "Hidden"}
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    className={`badge border-0 ${book.isFeatured
-                                                            ? "bg-warning-subtle text-warning-emphasis"
-                                                            : "bg-light text-muted"
-                                                        }`}
-                                                    onClick={() => onToggleStatus(book, { isFeatured: !book.isFeatured })}
+                                                    className={`vp-pill ${book.isFeatured ? "pending" : "neutral"}`}
+                                                    style={{
+                                                        border: 0,
+                                                        cursor: "pointer",
+                                                        padding: "2px 8px",
+                                                        fontSize: 10,
+                                                    }}
+                                                    onClick={() =>
+                                                        onToggleStatus(book, {
+                                                            isFeatured: !book.isFeatured,
+                                                        })
+                                                    }
                                                     disabled={statusUpdatingId === book.bookId}
-                                                    title={book.isFeatured ? "Remove from featured" : "Mark as featured"}
+                                                    title={
+                                                        book.isFeatured
+                                                            ? "Remove from featured"
+                                                            : "Mark as featured"
+                                                    }
                                                 >
-                                                    <i className={`bi ${book.isFeatured ? "bi-star-fill" : "bi-star"} me-1`}></i>
+                                                    <i
+                                                        className={`bi ${book.isFeatured ? "bi-star-fill" : "bi-star"}`}
+                                                    ></i>
                                                     {book.isFeatured ? "Featured" : "Regular"}
                                                 </button>
                                             </div>
                                         </td>
-
-                                        {/* Date */}
                                         <td>
-                                            <small className="text-muted">
-                                                {new Date(book.createdAt).toLocaleDateString("en-GB")}
-                                            </small>
+                                            <span className="vp-cell-sub">
+                                                {formatDate(book.createdAt)}
+                                            </span>
                                         </td>
-
-                                        {/* Actions */}
-                                        <td className="text-end">
-                                            <div className="d-flex gap-1 justify-content-end">
+                                        <td>
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    gap: 6,
+                                                    justifyContent: "flex-end",
+                                                }}
+                                            >
                                                 <button
-                                                    className="btn btn-outline-primary btn-sm"
+                                                    type="button"
+                                                    className="vp-btn vp-btn-sm"
                                                     onClick={() => onEdit(book)}
-                                                    title="Edit"
+                                                    title="Edit book"
                                                 >
                                                     <i className="bi bi-pencil"></i>
                                                 </button>
                                                 <button
-                                                    className="btn btn-outline-danger btn-sm"
+                                                    type="button"
+                                                    className="vp-btn vp-btn-sm vp-btn-danger"
                                                     onClick={() => onDelete(book.bookId)}
                                                     disabled={deletingId === book.bookId}
-                                                    title="Delete"
+                                                    title="Delete book"
                                                 >
                                                     {deletingId === book.bookId ? (
                                                         <span className="spinner-border spinner-border-sm" />
@@ -206,12 +346,12 @@ export default function BookTable({
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

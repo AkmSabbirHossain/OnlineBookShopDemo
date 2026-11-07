@@ -10,6 +10,7 @@ namespace OnlineBookShop.Server.Interfaces
         Task<List<OrderResponseDto>> GetUserOrdersAsync(int userId);
         Task CancelOrderAsync(int orderId, int userId);
         Task UpdateOrderStatusAsync(int orderId, OrderStatus newStatus);
+        Task UpdateOrderStatusForVendorAsync(int orderId, int vendorUserId, OrderStatus newStatus);
         Task<List<OrderResponseDto>> GetVendorOrdersAsync(int vendorId);
         Task ShipOrderAsync(int orderId, int vendorId);
     }

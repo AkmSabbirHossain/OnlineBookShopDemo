@@ -249,9 +249,16 @@ namespace OnlineBookShop.Server.Application.Services
             return _mapper.Map<List<OrderResponseDto>>(orders);
         }
 
-        // Vendor: Get vendor orders
+        // Vendor: Get vendor orders (only the requester's own items and totals)
         public async Task<List<OrderResponseDto>> GetVendorOrdersAsync(int vendorId)
         {
+            var vendorBookIds = await _unitOfWork.Repository<Book>()
+                .GetQueryable()
+                .AsNoTracking()
+                .Where(b => b.VendorId == vendorId)
+                .Select(b => b.BookId)
+                .ToListAsync();
+
             var orders = await _unitOfWork.Repository<OrderItem>()
                 .GetQueryable()
                 .Include(oi => oi.Order)
@@ -265,7 +272,23 @@ namespace OnlineBookShop.Server.Application.Services
                 .OrderByDescending(o => o.OrderDate)
                 .ToListAsync();
 
-            return _mapper.Map<List<OrderResponseDto>>(orders);
+            var dtos = _mapper.Map<List<OrderResponseDto>>(orders);
+
+            // A vendor must never see another vendor's line items or totals.
+            foreach (var dto in dtos)
+            {
+                dto.Items = dto.Items
+                    .Where(i => vendorBookIds.Contains(i.BookId))
+                    .ToList();
+
+                var ownTotal = dto.Items.Sum(i => i.Price * i.Quantity);
+                dto.SubtotalAmount = ownTotal;
+                dto.DiscountAmount = 0m;
+                dto.TotalAmount = ownTotal;
+                dto.CouponCode = null;
+            }
+
+            return dtos;
         }
 
         // Customer: Cancel order
@@ -468,12 +491,49 @@ namespace OnlineBookShop.Server.Application.Services
                 });
             }
 
-            //  Delivered hole VendorEarning create koro
-            if (newStatus == OrderStatus.Delivered)
+            var bookIds = new List<int>();
+
+            // Cancelling restores the stock that checkout reserved.
+            if (statusChanged && newStatus == OrderStatus.Cancelled)
             {
                 foreach (var item in order.OrderItems)
                 {
-                    if (item.Book == null) continue;
+                    await _unitOfWork.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE Books SET Stock = Stock + {item.Quantity} WHERE BookId = {item.BookId}");
+
+                    if (item.Book != null)
+                    {
+                        int oldStock = item.Book.Stock;
+
+                        await _stockHistoryService.AddStockHistoryAsync(
+                            bookId: item.Book.BookId,
+                            oldStock: oldStock,
+                            newStock: oldStock + item.Quantity,
+                            reason: "Return",
+                            changedBy: "Admin",
+                            notes: $"Restored stock due to Order Cancellation. Order ID: {orderId}",
+                            referenceId: orderId,
+                            referenceType: "OrderCancellation"
+                        );
+
+                        bookIds.Add(item.Book.BookId);
+                    }
+                }
+            }
+
+            //  Delivered hole VendorEarning create koro
+            if (newStatus == OrderStatus.Delivered)
+            {
+                var orderItemIds = order.OrderItems.Select(i => i.OrderItemId).ToList();
+                var alreadyCredited = await _unitOfWork.Repository<VendorEarning>()
+                    .GetQueryable()
+                    .Where(e => orderItemIds.Contains(e.OrderItemId))
+                    .Select(e => e.OrderItemId)
+                    .ToListAsync();
+
+                foreach (var item in order.OrderItems)
+                {
+                    if (item.Book == null || alreadyCredited.Contains(item.OrderItemId)) continue;
 
                     var gross = item.Price * item.Quantity;
                     var commission = gross * 0.10m; // CommissionRate — pore Category theke dynamic korte parbe
@@ -495,6 +555,135 @@ namespace OnlineBookShop.Server.Application.Services
 
             await _unitOfWork.SaveChangesAsync();
 
+            if (bookIds.Count > 0)
+                InvalidateBookCaches(bookIds);
+
+            await NotifyStatusChangedAsync(order, newStatus);
+        }
+
+        // Vendor: update status only for orders containing their own products.
+        // Earnings are generated only for the vendor's own line items.
+        public async Task UpdateOrderStatusForVendorAsync(int orderId, int vendorUserId, OrderStatus newStatus)
+        {
+            var vendor = await _unitOfWork.Repository<Vendor>()
+                .GetFirstOrDefaultAsync(v => v.UserId == vendorUserId)
+                ?? throw new UnauthorizedAccessException("Vendor profile not found");
+
+            if (!vendor.IsApproved || !vendor.IsActive)
+                throw new UnauthorizedAccessException("Vendor account is not active");
+
+            var order = await _unitOfWork.Repository<Order>()
+                .GetQueryable()
+                .Include(o => o.OrderItems)
+                    .ThenInclude(oi => oi.Book)
+                .Include(o => o.AppUser)
+                .Include(o => o.Address)
+                .FirstOrDefaultAsync(o => o.OrderId == orderId)
+                ?? throw new KeyNotFoundException("Order not found");
+
+            var ownItems = order.OrderItems
+                .Where(oi => oi.Book != null && oi.Book.VendorId == vendor.VendorId)
+                .ToList();
+
+            if (ownItems.Count == 0)
+                throw new UnauthorizedAccessException("This order does not contain any of your products");
+
+            var allowed = newStatus switch
+            {
+                OrderStatus.Paid => order.Status == OrderStatus.Pending,
+                OrderStatus.Shipped => order.Status == OrderStatus.Paid,
+                OrderStatus.Delivered => order.Status is OrderStatus.Shipped or OrderStatus.Delivered,
+                OrderStatus.Cancelled => order.Status == OrderStatus.Pending,
+                _ => false
+            };
+
+            if (!allowed)
+                throw new InvalidOperationException($"Cannot change order from {order.Status} to {newStatus}");
+
+            var statusChanged = order.Status != newStatus;
+            order.Status = newStatus;
+
+            if (statusChanged)
+            {
+                _unitOfWork.Repository<OrderStatusHistory>().Add(new OrderStatusHistory
+                {
+                    OrderId = orderId,
+                    Status = newStatus,
+                    ChangedAt = DateTime.UtcNow
+                });
+            }
+
+            var restoredBookIds = new List<int>();
+
+            // Cancelling the order restores stock for every line item,
+            // not just this vendor's products.
+            if (statusChanged && newStatus == OrderStatus.Cancelled)
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    await _unitOfWork.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE Books SET Stock = Stock + {item.Quantity} WHERE BookId = {item.BookId}");
+
+                    if (item.Book != null)
+                    {
+                        int oldStock = item.Book.Stock;
+
+                        await _stockHistoryService.AddStockHistoryAsync(
+                            bookId: item.Book.BookId,
+                            oldStock: oldStock,
+                            newStock: oldStock + item.Quantity,
+                            reason: "Return",
+                            changedBy: $"Vendor ID: {vendor.VendorId}",
+                            notes: $"Restored stock due to Order Cancellation. Order ID: {orderId}",
+                            referenceId: orderId,
+                            referenceType: "OrderCancellation"
+                        );
+
+                        restoredBookIds.Add(item.Book.BookId);
+                    }
+                }
+            }
+
+            if (newStatus == OrderStatus.Delivered)
+            {
+                // Idempotent per order item: another vendor may have already
+                // marked the shared order delivered.
+                var ownItemIds = ownItems.Select(i => i.OrderItemId).ToList();
+                var alreadyCredited = await _unitOfWork.Repository<VendorEarning>()
+                    .GetQueryable()
+                    .Where(e => e.VendorId == vendor.VendorId && ownItemIds.Contains(e.OrderItemId))
+                    .Select(e => e.OrderItemId)
+                    .ToListAsync();
+
+                foreach (var item in ownItems.Where(i => !alreadyCredited.Contains(i.OrderItemId)))
+                {
+                    var gross = item.Price * item.Quantity;
+                    var commission = gross * 0.10m;
+                    _unitOfWork.Repository<VendorEarning>().Add(new VendorEarning
+                    {
+                        VendorId = vendor.VendorId,
+                        OrderItemId = item.OrderItemId,
+                        GrossAmount = gross,
+                        CommissionAmount = commission,
+                        NetAmount = gross - commission,
+                        EarnedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            if (restoredBookIds.Count > 0)
+                InvalidateBookCaches(restoredBookIds);
+
+            if (statusChanged)
+                await NotifyStatusChangedAsync(order, newStatus);
+        }
+
+        private async Task NotifyStatusChangedAsync(Order order, OrderStatus newStatus)
+        {
+            var orderId = order.OrderId;
+
             //  Status wise Customer  notification
             var (title, message) = newStatus switch
             {
@@ -510,14 +699,21 @@ namespace OnlineBookShop.Server.Application.Services
                                           $"অর্ডার #{orderId} এর status: {newStatus}")
             };
 
-            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            try
             {
-                UserId = order.UserId,
-                Title = title,
-                Message = message
-            });
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = order.UserId,
+                    Title = title,
+                    Message = message
+                });
+            }
+            catch
+            {
+                // Order is already persisted; alert delivery is best-effort.
+            }
 
-            if (statusChanged && order.AppUser != null && !string.IsNullOrWhiteSpace(order.AppUser.Email))
+            if (order.AppUser != null && !string.IsNullOrWhiteSpace(order.AppUser.Email))
             {
                 try
                 {

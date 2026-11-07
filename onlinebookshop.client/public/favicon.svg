@@ -1,0 +1,71 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sbLogoTitle">
+  <title id="sbLogoTitle">Sabbir BookMall</title>
+  <defs>
+    <linearGradient id="sbTile" x1="10" y1="4" x2="54" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#263c66" />
+      <stop offset="0.55" stop-color="#16233f" />
+      <stop offset="1" stop-color="#0a1222" />
+    </linearGradient>
+    <linearGradient id="sbTileEdge" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.26" />
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.06" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.02" />
+    </linearGradient>
+    <linearGradient id="sbPageLeft" x1="13" y1="21" x2="32" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffaf0" />
+      <stop offset="1" stop-color="#edd9ad" />
+    </linearGradient>
+    <linearGradient id="sbPageRight" x1="51" y1="21" x2="32" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="1" stop-color="#c9d7e9" />
+    </linearGradient>
+    <linearGradient id="sbRibbon" x1="36" y1="18" x2="48" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8a5c" />
+      <stop offset="1" stop-color="#e8401c" />
+    </linearGradient>
+    <linearGradient id="sbGlow" x1="32" y1="14" x2="32" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff7a4d" stop-opacity="0.22" />
+      <stop offset="1" stop-color="#ff7a4d" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="17" fill="url(#sbTile)" />
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="17" stroke="url(#sbTileEdge)" stroke-width="1.5" />
+  <ellipse cx="32" cy="30" rx="23" ry="19" fill="url(#sbGlow)" />
+  <ellipse cx="32" cy="50.2" rx="14.5" ry="2.1" fill="#05080f" fill-opacity="0.5" />
+
+  <path
+    d="M32 24.2C26.8 20.9 20.6 19.6 15.3 20.3C13.7 20.5 12.6 21.8 12.6 23.4V42.7C12.6 44.4 14.1 45.6 15.7 45.4C21 44.6 26.5 45.8 32 48.8Z"
+    fill="url(#sbPageLeft)"
+    stroke="#ffffff"
+    stroke-opacity="0.45"
+    stroke-width="0.8"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M32 24.2C37.2 20.9 43.4 19.6 48.7 20.3C50.3 20.5 51.4 21.8 51.4 23.4V42.7C51.4 44.4 49.9 45.6 48.3 45.4C43 44.6 37.5 45.8 32 48.8Z"
+    fill="url(#sbPageRight)"
+    stroke="#ffffff"
+    stroke-opacity="0.55"
+    stroke-width="0.8"
+    stroke-linejoin="round"
+  />
+
+  <g stroke="#16233f" stroke-opacity="0.26" stroke-width="1.2" stroke-linecap="round">
+    <path d="M17 25.6C21.2 24.8 25.8 25.4 29.2 27.1" />
+    <path d="M17.2 30.4C21.4 29.6 26 30.2 29.4 31.9" />
+    <path d="M47 25.6C42.8 24.8 38.2 25.4 34.8 27.1" />
+    <path d="M46.8 30.4C42.6 29.6 38 30.2 34.6 31.9" />
+  </g>
+
+  <path d="M32 24.6V48.4" stroke="url(#sbRibbon)" stroke-width="2.4" stroke-linecap="round" />
+
+  <path
+    d="M38.9 21.4H45.3C45.5 21.4 45.6 21.5 45.6 21.7V37.3L42 34.5L38.6 37.3V21.7C38.6 21.5 38.7 21.4 38.9 21.4Z"
+    fill="url(#sbRibbon)"
+    stroke="#c2340f"
+    stroke-opacity="0.35"
+    stroke-width="0.6"
+    stroke-linejoin="round"
+  />
+</svg>

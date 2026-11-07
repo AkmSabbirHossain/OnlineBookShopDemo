@@ -1005,7 +1005,9 @@ export default function HomePage() {
         applyFilters({}, true);
     };
 
-    const handleChipRemove = (key: "search" | "category" | "price" | "stock" | "sort") => {
+    const handleChipRemove = (
+        key: "search" | "category" | "price" | "stock" | "sort" | "discounted"
+    ) => {
         const next: BookFilterParams = { ...activeFilters, page: 1 };
         if (key === "search") next.search = undefined;
         if (key === "category") next.categoryId = undefined;
@@ -1015,6 +1017,7 @@ export default function HomePage() {
         }
         if (key === "stock") next.inStockOnly = false;
         if (key === "sort") next.sortBy = undefined;
+        if (key === "discounted") next.discountedOnly = false;
         applyFilters(next, true);
     };
 
@@ -1071,6 +1074,7 @@ export default function HomePage() {
         Boolean(matchedCategory),
         urlState.minPrice !== undefined || urlState.maxPrice !== undefined,
         urlState.inStockOnly,
+        urlState.discountedOnly,
         Boolean(urlState.sortBy),
     ].filter(Boolean).length;
 
@@ -1078,7 +1082,9 @@ export default function HomePage() {
         ? t("home.resultsFor", { query: urlState.search })
         : matchedCategory
             ? matchedCategory.name
-            : t("home.allBooks");
+            : urlState.discountedOnly
+                ? t("home.offersResults")
+                : t("home.allBooks");
 
     const money = (value: number) => `৳${formatNumber(value)}`;
 
@@ -1471,6 +1477,19 @@ export default function HomePage() {
                                                         className="hm-chip-remove"
                                                         aria-label={t("home.removeStock")}
                                                         onClick={() => handleChipRemove("stock")}
+                                                    >
+                                                        <i className="bi bi-x" aria-hidden="true" />
+                                                    </button>
+                                                </span>
+                                            )}
+                                            {urlState.discountedOnly && (
+                                                <span className="hm-chip">
+                                                    {t("home.offersResults")}
+                                                    <button
+                                                        type="button"
+                                                        className="hm-chip-remove"
+                                                        aria-label={t("home.removeOffers")}
+                                                        onClick={() => handleChipRemove("discounted")}
                                                     >
                                                         <i className="bi bi-x" aria-hidden="true" />
                                                     </button>

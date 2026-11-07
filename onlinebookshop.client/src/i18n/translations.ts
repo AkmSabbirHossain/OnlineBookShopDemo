@@ -130,6 +130,8 @@ export const en = {
     "home.offersText":
         "Browse discounted titles across every category — our vendors add new offers regularly.",
     "home.offersCta": "Shop offers",
+    "home.offersResults": "Discounted books",
+    "home.removeOffers": "Remove discounted filter",
     "home.allBooks": "All books",
     "home.titlesAvailable": "{count} titles available",
     "home.newArrivalsEmpty": "New arrivals will appear here soon.",
@@ -480,6 +482,8 @@ export const bn: Record<TranslationKey, string> = {
     "home.offersText":
         "সব ক্যাটাগরির ডিসকাউন্ট বই দেখুন — বিক্রেতারা নিয়মিত নতুন অফার যোগ করেন।",
     "home.offersCta": "অফার দেখুন",
+    "home.offersResults": "ডিসকাউন্টের বই",
+    "home.removeOffers": "ডিসকাউন্ট ফিল্টার সরান",
     "home.allBooks": "সব বই",
     "home.titlesAvailable": "{count}টি বই পাওয়া যাচ্ছে",
     "home.newArrivalsEmpty": "নতুন বই শিগগিরই এখানে দেখা যাবে।",

@@ -13,7 +13,7 @@ import LanguageToggle from "./LanguageToggle";
 import { useLanguage } from "../../i18n/language-context";
 import { bookPath, categoryPath } from "../../utils/slug";
 import type { BookResponseDto, CategoryResponseDto } from "../../types/book.types";
-import brandIcon from "../../assets/brand-icon.svg";
+import brandIcon from "../../assets/logo-mark.svg";
 import "./navbar.css";
 
 // ── SVG Icons ────────────────────────────────

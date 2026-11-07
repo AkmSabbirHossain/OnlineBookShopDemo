@@ -224,6 +224,7 @@ function seoFilesPlugin(): Plugin {
                 { path: '/books', changefreq: 'daily', priority: '0.9' },
                 { path: '/authors', changefreq: 'weekly', priority: '0.7' },
                 { path: '/publishers', changefreq: 'weekly', priority: '0.7' },
+                { path: '/membership', changefreq: 'monthly', priority: '0.5' },
             ]
 
             let dynamicEntries: SitemapEntry[] = []

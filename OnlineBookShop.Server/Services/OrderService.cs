@@ -14,6 +14,7 @@ namespace OnlineBookShop.Server.Application.Services
         private readonly IStockHistoryService _stockHistoryService;
         private readonly INotificationService _notificationService;
         private readonly ICouponService _couponService;
+        private readonly IEmailService _emailService;
         private readonly IMapper _mapper;
         private readonly IMemoryCache _cache;
 
@@ -22,6 +23,7 @@ namespace OnlineBookShop.Server.Application.Services
             IStockHistoryService stockHistoryService,
             INotificationService notificationService,
             ICouponService couponService,
+            IEmailService emailService,
             IMapper mapper,
             IMemoryCache cache)
         {
@@ -29,6 +31,7 @@ namespace OnlineBookShop.Server.Application.Services
             _stockHistoryService = stockHistoryService;
             _notificationService = notificationService;
             _couponService = couponService;
+            _emailService = emailService;
             _mapper = mapper;
             _cache = cache;
         }
@@ -202,8 +205,19 @@ namespace OnlineBookShop.Server.Application.Services
                 }
             }
 
-            return await GetOrderByIdAsync(order.OrderId, userId)
+            var orderDto = await GetOrderByIdAsync(order.OrderId, userId)
                 ?? _mapper.Map<OrderResponseDto>(order);
+
+            try
+            {
+                await SendOrderEmailAsync(orderDto, "confirmation");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Order confirmation email failed for order #{order.OrderId}: {ex.Message}");
+            }
+
+            return orderDto;
         }
 
         // Customer: Get specific order
@@ -337,6 +351,50 @@ namespace OnlineBookShop.Server.Application.Services
             }
         }
 
+        private async Task SendOrderEmailAsync(OrderResponseDto orderDto, string kind)
+        {
+            var user = await _unitOfWork.Repository<AppUser>().GetByIdAsync(orderDto.UserId);
+            if (user == null || string.IsNullOrWhiteSpace(user.Email))
+            {
+                Console.WriteLine($"[Email] User {orderDto.UserId} has no email — skipping {kind} email for order #{orderDto.OrderId}.");
+                return;
+            }
+
+            var info = new OrderEmailInfoDto
+            {
+                ToEmail = user.Email,
+                UserName = user.UserName ?? "Customer",
+                OrderId = orderDto.OrderId,
+                OrderDate = orderDto.OrderDate,
+                Items = orderDto.Items.Select(i => new OrderEmailItemDto
+                {
+                    Title = i.Title,
+                    Quantity = i.Quantity,
+                    Price = i.Price
+                }).ToList(),
+                SubtotalAmount = orderDto.SubtotalAmount,
+                DiscountAmount = orderDto.DiscountAmount,
+                TotalAmount = orderDto.TotalAmount,
+                CouponCode = orderDto.CouponCode,
+                ShippingAddress = orderDto.Address == null
+                    ? null
+                    : string.Join(", ", new[]
+                    {
+                        orderDto.Address.Street,
+                        orderDto.Address.City,
+                        orderDto.Address.StateOrDivision,
+                        orderDto.Address.PostalCode,
+                        orderDto.Address.Country
+                    }.Where(s => !string.IsNullOrWhiteSpace(s))),
+                Status = orderDto.Status.ToString()
+            };
+
+            if (kind == "confirmation")
+                await _emailService.SendOrderConfirmationEmailAsync(info);
+            else
+                await _emailService.SendOrderStatusEmailAsync(info);
+        }
+
         private void InvalidateBookCaches(IEnumerable<int> bookIds)
         {
             _cache.Remove(CacheKeys.AllBooks);
@@ -387,6 +445,8 @@ namespace OnlineBookShop.Server.Application.Services
                 .GetQueryable()
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Book)
+                .Include(o => o.AppUser)
+                .Include(o => o.Address)
                 .FirstOrDefaultAsync(o => o.OrderId == orderId)
                 ?? throw new KeyNotFoundException("Order not found");
 
@@ -456,7 +516,21 @@ namespace OnlineBookShop.Server.Application.Services
                 Title = title,
                 Message = message
             });
+
+            if (statusChanged && order.AppUser != null && !string.IsNullOrWhiteSpace(order.AppUser.Email))
+            {
+                try
+                {
+                    var orderDto = _mapper.Map<OrderResponseDto>(order);
+                    await SendOrderEmailAsync(orderDto, "status");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Order status email failed for order #{orderId}: {ex.Message}");
+                }
+            }
         }
+
         // Vendor: Ship order
         public async Task ShipOrderAsync(int orderId, int vendorId)
         {

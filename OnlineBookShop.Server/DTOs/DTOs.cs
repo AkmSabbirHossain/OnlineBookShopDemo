@@ -442,6 +442,31 @@ namespace OnlineBookShop.Server.DTOs
     }
 
     // =====================================
+    // ORDER EMAIL
+    // =====================================
+    public class OrderEmailItemDto
+    {
+        public string Title { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal Price { get; set; }
+    }
+
+    public class OrderEmailInfoDto
+    {
+        public string ToEmail { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public int OrderId { get; set; }
+        public DateTime OrderDate { get; set; }
+        public List<OrderEmailItemDto> Items { get; set; } = new();
+        public decimal SubtotalAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public string? CouponCode { get; set; }
+        public string? ShippingAddress { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
+    // =====================================
     // REVIEW
     // =====================================
     public class ReviewCreateDto

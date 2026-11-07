@@ -266,6 +266,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using OnlineBookShop.Server.DTOs;
 using OnlineBookShop.Server.Interfaces;
 using Microsoft.Extensions.Configuration;
 
@@ -276,11 +277,206 @@ namespace OnlineBookShop.Server.Services
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
         private const string BrevoApiUrl = "https://api.brevo.com/v3/smtp/email";
+        private const string SiteUrl = "https://sabbirbookworld.vercel.app";
 
         public EmailService(IConfiguration config, IHttpClientFactory httpClientFactory)
         {
             _config = config;
             _httpClientFactory = httpClientFactory;
+        }
+
+        public async Task SendOrderConfirmationEmailAsync(OrderEmailInfoDto info)
+        {
+            var subject = $"অর্ডার কনফার্মেশন #{info.OrderId} — Sabbir BookMall";
+            var itemRows = string.Join("", info.Items.Select(i => $@"
+                    <tr>
+                        <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:14px;'>{i.Title}</td>
+                        <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:14px;text-align:center;'>{i.Quantity}</td>
+                        <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:14px;text-align:right;'>৳{i.Price:F0}</td>
+                        <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:14px;text-align:right;font-weight:700;'>৳{i.Price * i.Quantity:F0}</td>
+                    </tr>"));
+
+            var discountRow = info.DiscountAmount > 0
+                ? $@"
+                    <tr>
+                        <td colspan='3' style='padding:8px 12px;color:#16a34a;font-size:14px;'>Coupon ছাড় {(!string.IsNullOrEmpty(info.CouponCode) ? $"({info.CouponCode})" : "")}</td>
+                        <td style='padding:8px 12px;color:#16a34a;font-size:14px;text-align:right;font-weight:700;'>-৳{info.DiscountAmount:F0}</td>
+                    </tr>"
+                : "";
+
+            var addressBlock = !string.IsNullOrWhiteSpace(info.ShippingAddress)
+                ? $@"
+                            <p style='margin:0 0 4px;color:#1e293b;font-size:14px;font-weight:700;'>ডেলিভারি ঠিকানা</p>
+                            <p style='margin:0;color:#64748b;font-size:14px;line-height:1.6;'>{info.ShippingAddress}</p>"
+                : "";
+
+            var body = OrderEmailShell(info, $@"
+                            <h2 style='margin:0 0 12px;color:#1e293b;font-size:20px;font-weight:700;'>অর্ডার সফল হয়েছে! 🎉</h2>
+                            <p style='margin:0 0 24px;color:#64748b;font-size:15px;line-height:1.6;'>
+                                ধন্যবাদ <strong style='color:#1e293b;'>{info.UserName}</strong>! আপনার অর্ডার
+                                <strong style='color:#1e293b;'>#{info.OrderId}</strong> গ্রহণ করা হয়েছে। আমরা শীঘ্রই এটি প্রসেস করব।
+                            </p>
+                            <table width='100%' cellpadding='0' cellspacing='0' style='border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px;'>
+                                <tr style='background:#f8fafc;'>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;'>বই</td>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;text-align:center;'>পরিমাণ</td>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;text-align:right;'>দাম</td>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;text-align:right;'>মোট</td>
+                                </tr>
+                                {itemRows}
+                                <tr>
+                                    <td colspan='3' style='padding:10px 12px;color:#64748b;font-size:14px;'>সাবটোটাল</td>
+                                    <td style='padding:10px 12px;color:#1e293b;font-size:14px;text-align:right;'>৳{info.SubtotalAmount:F0}</td>
+                                </tr>
+                                {discountRow}
+                                <tr style='background:#fff7ed;'>
+                                    <td colspan='3' style='padding:12px;color:#1e293b;font-size:15px;font-weight:800;'>সর্বমোট</td>
+                                    <td style='padding:12px;color:#e8401c;font-size:16px;text-align:right;font-weight:800;'>৳{info.TotalAmount:F0}</td>
+                                </tr>
+                            </table>
+                            {addressBlock}");
+
+            await SendViaBrevoAsync(info.ToEmail, info.UserName, subject, body);
+        }
+
+        public async Task SendOrderStatusEmailAsync(OrderEmailInfoDto info)
+        {
+            var (title, accent, message) = info.Status switch
+            {
+                "Paid" => ("পেমেন্ট নিশ্চিত হয়েছে 💳", "#0d47a1", $"অর্ডার #{info.OrderId} এর পেমেন্ট সফলভাবে নিশ্চিত হয়েছে। আমরা শীঘ্রই অর্ডারটি প্রসেস করব।"),
+                "Shipped" => ("অর্ডার পাঠানো হয়েছে 🚚", "#b45309", $"অর্ডার #{info.OrderId} কুরিয়ারে পাঠানো হয়েছে। শীঘ্রই আপনার কাছে পৌঁছে যাবে।"),
+                "Delivered" => ("অর্ডার পৌঁছে গেছে 📦", "#16a34a", $"অর্ডার #{info.OrderId} সফলভাবে ডেলিভারি হয়েছে। আমাদের সাথে কেনাকাটা করার জন্য ধন্যবাদ!"),
+                "Cancelled" => ("অর্ডার বাতিল হয়েছে ❌", "#dc2626", $"অর্ডার #{info.OrderId} বাতিল করা হয়েছে। পেইড থাকলে রিফান্ড প্রসেস হবে।"),
+                _ => ("অর্ডার আপডেট 🔔", "#1a237e", $"অর্ডার #{info.OrderId} এর স্ট্যাটাস এখন: {info.Status}")
+            };
+
+            var subject = $"{title} — অর্ডার #{info.OrderId} — Sabbir BookMall";
+
+            var body = OrderEmailShell(info, $@"
+                            <div style='background:{accent};border-radius:8px;padding:16px 20px;margin-bottom:20px;'>
+                                <p style='margin:0;color:#fff;font-size:16px;font-weight:700;'>{title}</p>
+                            </div>
+                            <p style='margin:0 0 24px;color:#64748b;font-size:15px;line-height:1.6;'>
+                                প্রিয় <strong style='color:#1e293b;'>{info.UserName}</strong>, {message}
+                            </p>
+                            <table width='100%' cellpadding='0' cellspacing='0' style='border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px;'>
+                                <tr style='background:#f8fafc;'>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;'>বই</td>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;text-align:center;'>পরিমাণ</td>
+                                    <td style='padding:10px 12px;color:#64748b;font-size:12px;font-weight:700;text-align:right;'>মোট</td>
+                                </tr>
+                                {string.Join("", info.Items.Select(i => $@"
+                                <tr>
+                                    <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:14px;'>{i.Title}</td>
+                                    <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:14px;text-align:center;'>{i.Quantity}</td>
+                                    <td style='padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;font-size:14px;text-align:right;'>৳{i.Price * i.Quantity:F0}</td>
+                                </tr>"))}
+                                <tr style='background:#fff7ed;'>
+                                    <td colspan='2' style='padding:12px;color:#1e293b;font-size:15px;font-weight:800;'>সর্বমোট</td>
+                                    <td style='padding:12px;color:#e8401c;font-size:16px;text-align:right;font-weight:800;'>৳{info.TotalAmount:F0}</td>
+                                </tr>
+                            </table>");
+
+            await SendViaBrevoAsync(info.ToEmail, info.UserName, subject, body);
+        }
+
+        private string OrderEmailShell(OrderEmailInfoDto info, string content)
+        {
+            var orderUrl = $"{SiteUrl}/orders/{info.OrderId}";
+            return $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+</head>
+<body style='margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;'>
+    <table width='100%' cellpadding='0' cellspacing='0' style='background:#f5f5f5;padding:40px 0;'>
+        <tr>
+            <td align='center'>
+                <table width='560' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:100%;'>
+                    <tr>
+                        <td style='background:linear-gradient(135deg,#1a237e,#0d47a1);padding:32px 40px;text-align:center;'>
+                            <h1 style='margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;'>📚 Sabbir BookMall</h1>
+                            <p style='margin:6px 0 0;color:rgba(255,255,255,0.6);font-size:13px;'>আপনার বিশ্বস্ত অনলাইন বুকশপ</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style='padding:40px 40px 32px;'>
+                            {content}
+                            <div style='text-align:center;margin:8px 0 24px;'>
+                                <a href='{orderUrl}'
+                                   style='display:inline-block;background:#e8401c;color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(232,64,28,0.35);'>
+                                    অর্ডারটি দেখুন
+                                </a>
+                            </div>
+                            <p style='margin:0;color:#94a3b8;font-size:12px;text-align:center;'>
+                                অর্ডার নম্বর: #{info.OrderId} &nbsp;•&nbsp; তারিখ: {info.OrderDate:dd MMM yyyy}
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style='background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;'>
+                            <p style='margin:0;color:#94a3b8;font-size:12px;'>&copy; {DateTime.UtcNow.Year} Sabbir BookMall. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+        }
+
+        private async Task SendViaBrevoAsync(string toEmail, string userName, string subject, string html)
+        {
+            var apiKey = _config["EmailSettings:BrevoApiKey"]!;
+            var fromEmail = _config["EmailSettings:FromEmail"]!;
+            var fromName = _config["EmailSettings:FromName"] ?? "Sabbir BookMall";
+
+            if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(fromEmail))
+            {
+                throw new InvalidOperationException(
+                    "EmailSettings configuration is missing or not loaded (check environment variables in the hosting dashboard).");
+            }
+
+            var payload = new
+            {
+                sender = new { name = fromName, email = fromEmail },
+                to = new[] { new { email = toEmail, name = userName } },
+                subject = subject,
+                htmlContent = html
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                using var request = new HttpRequestMessage(HttpMethod.Post, BrevoApiUrl)
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json")
+                };
+                request.Headers.Add("api-key", apiKey);
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                var response = await client.SendAsync(request);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new InvalidOperationException(
+                        $"Brevo API returned {(int)response.StatusCode} {response.StatusCode}: {responseBody}");
+                }
+
+                Console.WriteLine($"✅ Email sent to: {toEmail} — {subject}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Email Send Failed to {toEmail}: {ex.Message}");
+                Console.WriteLine($"StackTrace: {ex.StackTrace}");
+                throw;
+            }
         }
 
         public async Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)

@@ -25,6 +25,7 @@ import CreatorsPage from "./pages/CreatorsPage";
 import CreatorProfilePage from "./pages/CreatorProfilePage";
 import ProfilePage from "./pages/ProfilePage";
 import WishlistPage from "./pages/WishlistPage";
+import MembershipPage from "./pages/MembershipPage";
 import Seo from "./components/common/Seo";
 import { useLanguage } from "./i18n/language-context";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -209,6 +210,7 @@ export default function App() {
                         />
 
                         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                        <Route path="/membership" element={<MembershipPage />} />
 
                         <Route path="/wishlist" element={<WishlistPage />} />
                         {/* ── Vendor Payout Routes ── */}

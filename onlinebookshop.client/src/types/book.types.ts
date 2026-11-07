@@ -100,6 +100,7 @@ export interface BookFilterParams {
     page?: number;
     pageSize?: number;
     inStockOnly?: boolean;
+    discountedOnly?: boolean;
 }
 
 export interface PagedResult<T> {

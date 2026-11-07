@@ -37,10 +37,11 @@ namespace OnlineBookShop.Server.Controllers
             [FromQuery] string? sortBy,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 12,
-            [FromQuery] bool inStockOnly = false)
+            [FromQuery] bool inStockOnly = false,
+            [FromQuery] bool discountedOnly = false)
         {
             var result = await _bookService.GetFilteredBooksAsync(
-                search, categoryId, authorId, publisherId, minPrice, maxPrice, sortBy, page, pageSize, inStockOnly);
+                search, categoryId, authorId, publisherId, minPrice, maxPrice, sortBy, page, pageSize, inStockOnly, discountedOnly);
             return Ok(result);
         }
 

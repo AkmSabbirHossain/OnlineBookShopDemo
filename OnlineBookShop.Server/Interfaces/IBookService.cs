@@ -35,7 +35,8 @@ namespace OnlineBookShop.Server.Interfaces
             string? sortBy,
             int page,
             int pageSize,
-            bool inStockOnly = false
+            bool inStockOnly = false,
+            bool discountedOnly = false
         );
     }
 }

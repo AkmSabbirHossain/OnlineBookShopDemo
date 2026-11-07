@@ -681,7 +681,8 @@ namespace OnlineBookShop.Server.Services
             string? sortBy,
             int page,
             int pageSize,
-            bool inStockOnly = false)
+            bool inStockOnly = false,
+            bool discountedOnly = false)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
@@ -723,6 +724,9 @@ namespace OnlineBookShop.Server.Services
 
             if (inStockOnly)
                 query = query.Where(b => b.Stock > 0);
+
+            if (discountedOnly)
+                query = query.Where(b => b.DiscountPrice.HasValue && b.DiscountPrice.Value < b.Price);
 
             query = sortBy?.Trim().ToLowerInvariant() switch
             {

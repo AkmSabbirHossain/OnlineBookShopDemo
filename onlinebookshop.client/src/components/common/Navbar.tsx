@@ -6,13 +6,13 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import AuthService from "../../services/auth.service";
 import CartService from "../../services/cart.service";
+import BookService from "../../services/book.service";
 import NotificationBell from "../notifications/NotificationBell";
 import BookSearchBox from "../search/BookSearchBox";
 import LanguageToggle from "./LanguageToggle";
 import { useLanguage } from "../../i18n/language-context";
-import type { TranslationKey } from "../../i18n/translations";
-import { bookPath } from "../../utils/slug";
-import type { BookResponseDto } from "../../types/book.types";
+import { bookPath, categoryPath } from "../../utils/slug";
+import type { BookResponseDto, CategoryResponseDto } from "../../types/book.types";
 import brandIcon from "../../assets/brand-icon.svg";
 
 // ── SVG Icons ────────────────────────────────
@@ -74,19 +74,9 @@ const TruckIcon = () => (
     </svg>
 );
 
-// ── Category nav items ──────────────────────
-const CATEGORIES: { labelKey: TranslationKey; to: string; highlight?: boolean }[] = [
-    { labelKey: "nav.books", to: "/books" },
-    { labelKey: "nav.academic", to: "/category/academic" },
-    { labelKey: "nav.children", to: "/category/children" },
-    { labelKey: "nav.islamic", to: "/category/islamic" },
-    { labelKey: "nav.fiction", to: "/category/fiction" },
-    { labelKey: "nav.nonfiction", to: "/category/non-fiction" },
-    { labelKey: "nav.stationery", to: "/category/stationery" },
-    { labelKey: "nav.writers", to: "/authors" },
-    { labelKey: "nav.publishers", to: "/publishers" },
-    { labelKey: "nav.newArrivals", to: "/books?sort=newest", highlight: true },
-];
+// ── Static nav items ─────────────────────────
+const OFFERS_PATH = "/books?discounted=true";
+const MAX_NAV_CATEGORIES = 14;
 
 export default function Navbar() {
     const navigate = useNavigate();
@@ -112,6 +102,24 @@ export default function Navbar() {
     const [cartCount, setCartCount] = useState(0);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+    const catDropdownRef = useRef<HTMLDivElement>(null);
+    const [navCategories, setNavCategories] = useState<CategoryResponseDto[]>([]);
+
+    useEffect(() => {
+        let active = true;
+        BookService.getCategories()
+            .then((list) => {
+                if (!active) return;
+                const visible = list
+                    .filter((cat) => cat.isActive !== false)
+                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                    .slice(0, MAX_NAV_CATEGORIES);
+                setNavCategories(visible);
+            })
+            .catch(() => { /* nav works without the dropdown list */ });
+        return () => { active = false; };
+    }, []);
 
     // ── Typewriter placeholder ──
     const [placeholderText, setPlaceholderText] = useState("");
@@ -148,7 +156,7 @@ export default function Navbar() {
     }, [charIndex, isDeleting, phraseIndex, searchPlaceholders]);
 
     useEffect(() => {
-        const timer = setTimeout(() => { setMobileMenuOpen(false); setDropdownOpen(false); }, 0);
+        const timer = setTimeout(() => { setMobileMenuOpen(false); setDropdownOpen(false); setCatDropdownOpen(false); }, 0);
         return () => clearTimeout(timer);
     }, [location.pathname]);
 
@@ -186,6 +194,8 @@ export default function Navbar() {
         const handler = (e: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node))
                 setDropdownOpen(false);
+            if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node))
+                setCatDropdownOpen(false);
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
@@ -208,6 +218,12 @@ export default function Navbar() {
         }
         return location.pathname === path || location.pathname.startsWith(`${path}/`);
     };
+
+    const isOffersActive = () =>
+        location.pathname === "/books" &&
+        new URLSearchParams(location.search).get("discounted") === "true";
+
+    const isCategoryAreaActive = () => location.pathname.startsWith("/category");
 
     const handleLogout = () => {
         setDropdownOpen(false);
@@ -564,18 +580,17 @@ export default function Navbar() {
                 .nb-dropdown-item.danger svg { color: #dc2626; }
 
                 /* ── Category nav ── */
-                .nb-cat { background: var(--navy); border-top: none; }
+                .nb-cat { background: var(--navy); border-top: none; position: relative; }
                 .nb-cat-inner {
                     max-width: 1200px; margin: 0 auto; padding: 0 20px;
                     display: flex; align-items: center; gap: 2px;
-                    overflow-x: auto; scrollbar-width: none;
                 }
-                .nb-cat-inner::-webkit-scrollbar { display: none; }
                 .nb-cat-link {
-                    display: inline-flex; align-items: center; padding: 0 14px; height: 38px;
+                    display: inline-flex; align-items: center; gap: 5px; padding: 0 14px; height: 38px;
                     font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.75);
                     text-decoration: none; white-space: nowrap; border-radius: 0;
                     transition: color 0.15s, background 0.15s; letter-spacing: 0.01em; position: relative;
+                    background: transparent; border: none; cursor: pointer; font-family: inherit;
                 }
                 .nb-cat-link::after {
                     content: ''; position: absolute; bottom: 0; left: 14px; right: 14px;
@@ -586,8 +601,29 @@ export default function Navbar() {
                 .nb-cat-link:hover::after { transform: scaleX(1); }
                 .nb-cat-link.active { color: #fff; }
                 .nb-cat-link.active::after { transform: scaleX(1); }
+                .nb-cat-link .nb-cat-caret { color: rgba(255,255,255,0.5); }
                 .nb-cat-highlight { color: #fbbf24 !important; font-weight: 700; }
                 .nb-cat-highlight:hover { color: #fde68a !important; }
+
+                /* ── Categories dropdown ── */
+                .nb-cat-item { position: relative; }
+                .nb-cat-menu {
+                    position: absolute; top: 100%; left: 0; min-width: 230px;
+                    background: #fff; border: 1px solid var(--border); border-radius: 0 0 12px 12px;
+                    box-shadow: 0 18px 44px rgba(15,23,42,0.25); padding: 6px; z-index: 9999;
+                    max-height: 420px; overflow-y: auto;
+                    animation: nbDropIn 0.16s ease;
+                }
+                .nb-cat-menu-link {
+                    display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 8px;
+                    font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none;
+                    transition: background 0.12s, color 0.12s;
+                }
+                .nb-cat-menu-link:hover { background: var(--brand-light); color: var(--brand); }
+                .nb-cat-menu-link i { color: #94a3b8; font-size: 12px; }
+                .nb-cat-menu-link:hover i { color: var(--brand); }
+                .nb-cat-menu-divider { height: 1px; background: var(--border); margin: 5px 10px; }
+                .nb-cat-menu-all { color: var(--brand); }
 
                 /* ── Mobile search row ── */
                 .nb-mobile-search {
@@ -978,18 +1014,42 @@ export default function Navbar() {
                             </Link>
                         )}
 
+                        <div className="nb-mobile-section-title">{t("nav.siteMenu")}</div>
+
+                        <Link className="nb-mobile-link" to="/">
+                            <ShopIcon /> {t("nav.home")}
+                        </Link>
+                        <Link className="nb-mobile-link" to="/authors">
+                            <UserIcon /> {t("nav.writers")}
+                        </Link>
+                        <Link className="nb-mobile-link" to="/publishers">
+                            <GearIcon /> {t("nav.publishers")}
+                        </Link>
+                        <Link className={`nb-mobile-link${isOffersActive() ? " text-warning" : ""}`} to={OFFERS_PATH}>
+                            <CartIcon /> {t("nav.offers")}
+                        </Link>
+                        <Link className="nb-mobile-link" to="/category/stationery">
+                            <OrderIcon /> {t("nav.stationery")}
+                        </Link>
+                        <Link className="nb-mobile-link" to="/membership">
+                            <HeartIcon /> {t("nav.membership")}
+                        </Link>
+
                         <div className="nb-mobile-cats">
                             <div className="nb-mobile-cats-title">{t("nav.browseCategories")}</div>
                             <div className="nb-mobile-cats-grid">
-                                {CATEGORIES.map((cat) => (
+                                {navCategories.map((cat) => (
                                     <Link
-                                        key={cat.to}
-                                        className={`nb-mobile-cat-chip${cat.highlight ? " highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
-                                        to={cat.to}
+                                        key={cat.categoryId}
+                                        className="nb-mobile-cat-chip"
+                                        to={categoryPath(cat.name)}
                                     >
-                                        {t(cat.labelKey)}
+                                        {cat.name}
                                     </Link>
                                 ))}
+                                <Link className="nb-mobile-cat-chip" to="/books">
+                                    {t("nav.allBooks")}
+                                </Link>
                             </div>
                         </div>
                     </div>
@@ -997,15 +1057,79 @@ export default function Navbar() {
                     {/* ── Desktop category nav ── */}
                     <div className="nb-cat">
                         <div className="nb-cat-inner">
-                            {CATEGORIES.map((cat) => (
-                                <Link
-                                    key={cat.to}
-                                    className={`nb-cat-link${cat.highlight ? " nb-cat-highlight" : ""}${isNavActive(cat.to) ? " active" : ""}`}
-                                    to={cat.to}
+                            <Link
+                                className={`nb-cat-link${location.pathname === "/" ? " active" : ""}`}
+                                to="/"
+                            >
+                                {t("nav.home")}
+                            </Link>
+
+                            <div className="nb-cat-item" ref={catDropdownRef}>
+                                <button
+                                    className={`nb-cat-link${isCategoryAreaActive() ? " active" : ""}`}
+                                    onClick={() => setCatDropdownOpen((p) => !p)}
+                                    aria-expanded={catDropdownOpen}
                                 >
-                                    {t(cat.labelKey)}
-                                </Link>
-                            ))}
+                                    {t("nav.categories")}
+                                    <span className="nb-cat-caret"><ChevronDownIcon open={catDropdownOpen} /></span>
+                                </button>
+
+                                {catDropdownOpen && (
+                                    <div className="nb-cat-menu">
+                                        {navCategories.map((cat) => (
+                                            <Link
+                                                key={cat.categoryId}
+                                                className="nb-cat-menu-link"
+                                                to={categoryPath(cat.name)}
+                                                onClick={() => setCatDropdownOpen(false)}
+                                            >
+                                                <i className="bi bi-tag"></i>
+                                                {cat.name}
+                                            </Link>
+                                        ))}
+                                        <div className="nb-cat-menu-divider" />
+                                        <Link
+                                            className="nb-cat-menu-link nb-cat-menu-all"
+                                            to="/books"
+                                            onClick={() => setCatDropdownOpen(false)}
+                                        >
+                                            <i className="bi bi-grid"></i>
+                                            {t("nav.allBooks")}
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
+
+                            <Link
+                                className={`nb-cat-link${isNavActive("/authors") ? " active" : ""}`}
+                                to="/authors"
+                            >
+                                {t("nav.writers")}
+                            </Link>
+                            <Link
+                                className={`nb-cat-link${isNavActive("/publishers") ? " active" : ""}`}
+                                to="/publishers"
+                            >
+                                {t("nav.publishers")}
+                            </Link>
+                            <Link
+                                className={`nb-cat-link nb-cat-highlight${isOffersActive() ? " active" : ""}`}
+                                to={OFFERS_PATH}
+                            >
+                                {t("nav.offers")}
+                            </Link>
+                            <Link
+                                className={`nb-cat-link${isNavActive("/category/stationery") ? " active" : ""}`}
+                                to="/category/stationery"
+                            >
+                                {t("nav.stationery")}
+                            </Link>
+                            <Link
+                                className={`nb-cat-link${isNavActive("/membership") ? " active" : ""}`}
+                                to="/membership"
+                            >
+                                {t("nav.membership")}
+                            </Link>
                         </div>
                     </div>
                 </div>

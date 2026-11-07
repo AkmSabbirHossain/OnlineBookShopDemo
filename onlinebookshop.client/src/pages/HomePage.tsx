@@ -103,6 +103,7 @@ interface ParsedUrl {
     minPrice?: number;
     maxPrice?: number;
     inStockOnly: boolean;
+    discountedOnly: boolean;
     page: number;
     showAll: boolean;
 }
@@ -159,6 +160,7 @@ function parseUrlState(
     const minPrice = parseMoney(params.get("minPrice"));
     const maxPrice = parseMoney(params.get("maxPrice"));
     const inStockOnly = params.get("inStock") === "true";
+    const discountedOnly = params.get("discounted") === "true";
     const parsedPage = Number.parseInt(params.get("page") ?? "1", 10);
     const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
@@ -171,10 +173,11 @@ function parseUrlState(
             minPrice !== undefined ||
             maxPrice !== undefined ||
             inStockOnly ||
+            discountedOnly ||
             page > 1
         );
 
-    return { search, categorySlug, sortBy, minPrice, maxPrice, inStockOnly, page, showAll };
+    return { search, categorySlug, sortBy, minPrice, maxPrice, inStockOnly, discountedOnly, page, showAll };
 }
 
 function isAllBooksSlug(slug: string): boolean {
@@ -229,6 +232,7 @@ function buildLocation(
     if (filters.minPrice !== undefined) params.set("minPrice", String(filters.minPrice));
     if (filters.maxPrice !== undefined) params.set("maxPrice", String(filters.maxPrice));
     if (filters.inStockOnly) params.set("inStock", "true");
+    if (filters.discountedOnly) params.set("discounted", "true");
     if ((filters.page ?? 1) > 1) params.set("page", String(filters.page));
 
     const search = params.toString();
@@ -573,6 +577,7 @@ export default function HomePage() {
             minPrice: urlState.minPrice,
             maxPrice: urlState.maxPrice,
             inStockOnly: urlState.inStockOnly,
+            discountedOnly: urlState.discountedOnly,
             page: urlState.page,
             pageSize: PAGE_SIZE,
         }),
@@ -749,6 +754,7 @@ export default function HomePage() {
             "minPrice",
             "maxPrice",
             "inStock",
+            "discounted",
             "page",
         ];
         if (!legacyKeys.some((key) => params.has(key))) return;
@@ -779,6 +785,7 @@ export default function HomePage() {
                         minPrice: parseMoney(params.get("minPrice")),
                         maxPrice: parseMoney(params.get("maxPrice")),
                         inStockOnly: params.get("inStock") === "true",
+                        discountedOnly: params.get("discounted") === "true",
                         sortBy: normalizeSort(params.get("sort")),
                         page: Math.max(
                             1,
@@ -800,6 +807,7 @@ export default function HomePage() {
                     minPrice: parseMoney(params.get("minPrice")),
                     maxPrice: parseMoney(params.get("maxPrice")),
                     inStockOnly: params.get("inStock") === "true",
+                    discountedOnly: params.get("discounted") === "true",
                     sortBy: normalizeSort(params.get("sort")),
                     page: Math.max(
                         1,

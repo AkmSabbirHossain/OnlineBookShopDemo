@@ -4,7 +4,7 @@
 // =============================================
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import Navbar from "../components/common/Navbar";
@@ -38,6 +38,7 @@ const PAGE_SIZE = 20;
 const LANDING_ALL_BOOKS = 20;
 const LANDING_NEW_ARRIVALS = 10;
 const LANDING_CREATORS = 12;
+const OFFERS_PATH = "/books?discounted=true";
 
 type SortValue = NonNullable<BookFilterParams["sortBy"]>;
 
@@ -266,6 +267,7 @@ function SectionHeader({
     id,
     title,
     subtitle,
+    eyebrow,
     icon,
     actionLabel,
     onAction,
@@ -273,6 +275,7 @@ function SectionHeader({
     id: string;
     title: string;
     subtitle?: string;
+    eyebrow?: string;
     icon?: string;
     actionLabel?: string;
     onAction?: () => void;
@@ -285,7 +288,8 @@ function SectionHeader({
                         <i className={`bi ${icon}`} />
                     </span>
                 )}
-                <div>
+                <div className="hm-head-text">
+                    {eyebrow && <span className="hm-eyebrow">{eyebrow}</span>}
                     <h2 id={id} className="hm-section-title">
                         {title}
                     </h2>
@@ -294,11 +298,54 @@ function SectionHeader({
             </div>
             {onAction && actionLabel && (
                 <button type="button" className="hm-viewall" onClick={onAction}>
-                    {actionLabel}
+                    <span>{actionLabel}</span>
                     <i className="bi bi-arrow-right" aria-hidden="true" />
                 </button>
             )}
         </div>
+    );
+}
+
+function TrustStrip() {
+    const { t } = useLanguage();
+    const items = [
+        { icon: "bi-patch-check-fill", label: t("footer.genuine") },
+        { icon: "bi-truck", label: t("footer.delivery") },
+        { icon: "bi-shield-lock-fill", label: t("footer.secure") },
+        { icon: "bi-arrow-repeat", label: t("footer.returns") },
+    ];
+
+    return (
+        <ul className="hm-trust" aria-label={t("footer.why")}>
+            {items.map((item) => (
+                <li className="hm-trust-item" key={item.label}>
+                    <span className="hm-trust-icon" aria-hidden="true">
+                        <i className={`bi ${item.icon}`} />
+                    </span>
+                    <span className="hm-trust-label">{item.label}</span>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+function OffersBand({ onOpen }: { onOpen: () => void }) {
+    const { t } = useLanguage();
+    return (
+        <section className="hm-offers" aria-labelledby="hm-offers-title">
+            <div className="hm-offers-glow" aria-hidden="true" />
+            <div className="hm-offers-copy">
+                <span className="hm-eyebrow hm-eyebrow--light">{t("home.offersEyebrow")}</span>
+                <h2 id="hm-offers-title" className="hm-offers-title">
+                    {t("home.offersTitle")}
+                </h2>
+                <p className="hm-offers-text">{t("home.offersText")}</p>
+            </div>
+            <button type="button" className="hm-offers-cta" onClick={onOpen}>
+                {t("home.offersCta")}
+                <i className="bi bi-arrow-right" aria-hidden="true" />
+            </button>
+        </section>
     );
 }
 
@@ -428,6 +475,9 @@ function CategoryTile({
             <span className="hm-cat-body">
                 <span className="hm-cat-name">{category.name}</span>
                 <span className="hm-cat-count">{countLabel}</span>
+            </span>
+            <span className="hm-cat-arrow" aria-hidden="true">
+                <i className="bi bi-arrow-up-right" />
             </span>
         </button>
     );
@@ -978,6 +1028,11 @@ export default function HomePage() {
         navigate(buildLocation({ sortBy, page: 1 }, true, categories));
     };
 
+    const handleOpenOffers = () => {
+        pendingScroll.current = true;
+        navigate(OFFERS_PATH);
+    };
+
     const handleAddToCart = async (bookId: number) => {
         if (!AuthService.isAuthenticated()) {
             navigate("/auth");
@@ -1115,13 +1170,17 @@ export default function HomePage() {
             <div className="hm-page">
                 <h1 className="hm-sr-only">{t("home.h1")}</h1>
 
-                {bannersLoading ? (
-                    <HeroSkeleton />
-                ) : banners.length > 0 ? (
-                    <HeroSlider banners={banners} />
-                ) : null}
+                {!showResults && (
+                    bannersLoading ? (
+                        <HeroSkeleton />
+                    ) : banners.length > 0 ? (
+                        <HeroSlider banners={banners} />
+                    ) : null
+                )}
 
                 <main className="hm-container hm-main" id="main-content">
+                    {!showResults && <TrustStrip />}
+
                     {metaError && (
                         <InlineNotice
                             tone="error"
@@ -1141,8 +1200,14 @@ export default function HomePage() {
                             aria-busy={catalogLoading || awaitingCategoryResolution}
                         >
                             <div className="hm-results-panel">
+                                <nav className="hm-breadcrumb" aria-label="Breadcrumb">
+                                    <Link to="/">{t("footer.home")}</Link>
+                                    <i className="bi bi-chevron-right" aria-hidden="true" />
+                                    <span aria-current="page">{resultsTitle}</span>
+                                </nav>
+
                                 <div className="hm-results-top">
-                                    <div>
+                                    <div className="hm-results-heading">
                                         <h2 id="hm-results-title" className="hm-results-title">
                                             {resultsTitle}
                                         </h2>
@@ -1201,14 +1266,29 @@ export default function HomePage() {
                                         })}
                                     </InlineNotice>
                                 )}
+                            </div>
 
-                                <form
-                                    id="hm-filter-panel"
-                                    className={`hm-filters-panel${filtersOpen ? " is-open" : ""}`}
-                                    onSubmit={handleFilterSubmit}
-                                    noValidate
-                                >
-                                    <div className="hm-filter-form">
+                            <div className="hm-catalog">
+                                <aside className={`hm-filter-rail${filtersOpen ? " is-open" : ""}`}>
+                                    <div className="hm-rail-head">
+                                        <h3 className="hm-rail-title">{t("home.refineTitle")}</h3>
+                                        {activeFilterCount > 0 && (
+                                            <button
+                                                type="button"
+                                                className="hm-rail-clear"
+                                                onClick={handleClearFilters}
+                                            >
+                                                {t("home.clearAll")}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <form
+                                        id="hm-filter-panel"
+                                        className="hm-filter-form"
+                                        onSubmit={handleFilterSubmit}
+                                        noValidate
+                                    >
                                         <div className="hm-field">
                                             <label htmlFor="hm-filter-search">
                                                 {t("home.search")}
@@ -1319,228 +1399,230 @@ export default function HomePage() {
                                             )}
                                         </div>
 
-                                        <div className="hm-field hm-filter-actions">
-                                            <label className="hm-check">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={draft.inStockOnly}
-                                                    onChange={(event) =>
-                                                        setDraft((prev) => ({
-                                                            ...prev,
-                                                            inStockOnly: event.target.checked,
-                                                        }))
-                                                    }
-                                                />
-                                                {t("home.inStockOnly")}
-                                            </label>
-                                            <button type="submit" className="hm-btn hm-btn--primary">
-                                                {t("home.applyFilters")}
+                                        <label className="hm-check">
+                                            <input
+                                                type="checkbox"
+                                                checked={draft.inStockOnly}
+                                                onChange={(event) =>
+                                                    setDraft((prev) => ({
+                                                        ...prev,
+                                                        inStockOnly: event.target.checked,
+                                                    }))
+                                                }
+                                            />
+                                            {t("home.inStockOnly")}
+                                        </label>
+
+                                        <button type="submit" className="hm-btn hm-btn--primary hm-rail-apply">
+                                            {t("home.applyFilters")}
+                                        </button>
+                                    </form>
+                                </aside>
+
+                                <div className="hm-catalog-main">
+                                    {activeFilterCount > 0 && (
+                                        <div className="hm-chips">
+                                            {urlState.search && (
+                                                <span className="hm-chip">
+                                                    “{urlState.search}”
+                                                    <button
+                                                        type="button"
+                                                        className="hm-chip-remove"
+                                                        aria-label={t("home.removeSearch")}
+                                                        onClick={() => handleChipRemove("search")}
+                                                    >
+                                                        <i className="bi bi-x" aria-hidden="true" />
+                                                    </button>
+                                                </span>
+                                            )}
+                                            {matchedCategory && (
+                                                <span className="hm-chip">
+                                                    {matchedCategory.name}
+                                                    <button
+                                                        type="button"
+                                                        className="hm-chip-remove"
+                                                        aria-label={t("home.removeCategory", {
+                                                            name: matchedCategory.name,
+                                                        })}
+                                                        onClick={() => handleChipRemove("category")}
+                                                    >
+                                                        <i className="bi bi-x" aria-hidden="true" />
+                                                    </button>
+                                                </span>
+                                            )}
+                                            {priceLabel && (
+                                                <span className="hm-chip">
+                                                    {priceLabel}
+                                                    <button
+                                                        type="button"
+                                                        className="hm-chip-remove"
+                                                        aria-label={t("home.removePrice")}
+                                                        onClick={() => handleChipRemove("price")}
+                                                    >
+                                                        <i className="bi bi-x" aria-hidden="true" />
+                                                    </button>
+                                                </span>
+                                            )}
+                                            {urlState.inStockOnly && (
+                                                <span className="hm-chip">
+                                                    {t("home.inStock")}
+                                                    <button
+                                                        type="button"
+                                                        className="hm-chip-remove"
+                                                        aria-label={t("home.removeStock")}
+                                                        onClick={() => handleChipRemove("stock")}
+                                                    >
+                                                        <i className="bi bi-x" aria-hidden="true" />
+                                                    </button>
+                                                </span>
+                                            )}
+                                            {urlState.sortBy && (
+                                                <span className="hm-chip">
+                                                    {sortLabel}
+                                                    <button
+                                                        type="button"
+                                                        className="hm-chip-remove"
+                                                        aria-label={t("home.removeSort")}
+                                                        onClick={() => handleChipRemove("sort")}
+                                                    >
+                                                        <i className="bi bi-x" aria-hidden="true" />
+                                                    </button>
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                className="hm-clear-link"
+                                                onClick={handleClearFilters}
+                                            >
+                                                {t("home.clearAll")}
                                             </button>
                                         </div>
-                                    </div>
-                                </form>
-
-                                {activeFilterCount > 0 && (
-                                    <div className="hm-chips">
-                                        {urlState.search && (
-                                            <span className="hm-chip">
-                                                “{urlState.search}”
-                                                <button
-                                                    type="button"
-                                                    className="hm-chip-remove"
-                                                    aria-label={t("home.removeSearch")}
-                                                    onClick={() => handleChipRemove("search")}
-                                                >
-                                                    <i className="bi bi-x" aria-hidden="true" />
-                                                </button>
-                                            </span>
-                                        )}
-                                        {matchedCategory && (
-                                            <span className="hm-chip">
-                                                {matchedCategory.name}
-                                                <button
-                                                    type="button"
-                                                    className="hm-chip-remove"
-                                                    aria-label={t("home.removeCategory", {
-                                                        name: matchedCategory.name,
-                                                    })}
-                                                    onClick={() => handleChipRemove("category")}
-                                                >
-                                                    <i className="bi bi-x" aria-hidden="true" />
-                                                </button>
-                                            </span>
-                                        )}
-                                        {priceLabel && (
-                                            <span className="hm-chip">
-                                                {priceLabel}
-                                                <button
-                                                    type="button"
-                                                    className="hm-chip-remove"
-                                                    aria-label={t("home.removePrice")}
-                                                    onClick={() => handleChipRemove("price")}
-                                                >
-                                                    <i className="bi bi-x" aria-hidden="true" />
-                                                </button>
-                                            </span>
-                                        )}
-                                        {urlState.inStockOnly && (
-                                            <span className="hm-chip">
-                                                {t("home.inStock")}
-                                                <button
-                                                    type="button"
-                                                    className="hm-chip-remove"
-                                                    aria-label={t("home.removeStock")}
-                                                    onClick={() => handleChipRemove("stock")}
-                                                >
-                                                    <i className="bi bi-x" aria-hidden="true" />
-                                                </button>
-                                            </span>
-                                        )}
-                                        {urlState.sortBy && (
-                                            <span className="hm-chip">
-                                                {sortLabel}
-                                                <button
-                                                    type="button"
-                                                    className="hm-chip-remove"
-                                                    aria-label={t("home.removeSort")}
-                                                    onClick={() => handleChipRemove("sort")}
-                                                >
-                                                    <i className="bi bi-x" aria-hidden="true" />
-                                                </button>
-                                            </span>
-                                        )}
-                                        <button
-                                            type="button"
-                                            className="hm-clear-link"
-                                            onClick={handleClearFilters}
-                                        >
-                                            {t("home.clearAll")}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            {catalogLoading || awaitingCategoryResolution ? (
-                                <BookSkeletonGrid count={10} />
-                            ) : catalogError ? (
-                                <ErrorCard
-                                    title={t("home.booksCouldntLoad")}
-                                    message={catalogError}
-                                    onRetry={() => setReloadToken((token) => token + 1)}
-                                />
-                            ) : catalogBooks.length === 0 ? (
-                                <EmptyState
-                                    title={t("home.noMatch")}
-                                    message={t("home.noMatchBody")}
-                                    actionLabel={t("home.clearFilters")}
-                                    onAction={handleClearFilters}
-                                />
-                            ) : (
-                                <>
-                                    <BookGrid
-                                        books={catalogBooks}
-                                        onAddToCart={handleAddToCart}
-                                        addingToCart={addingToCart}
-                                        cartQuantities={cartQuantities}
-                                    />
-
-                                    {totalPages > 1 && (
-                                        <nav className="hm-pagination" aria-label={t("home.catalogPages")}>
-                                            <ul className="pagination pagination-sm">
-                                                <li
-                                                    className={`page-item${
-                                                        currentPage === 1 ? " disabled" : ""
-                                                    }`}
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        className="page-link"
-                                                        onClick={() => handlePageChange(currentPage - 1)}
-                                                        disabled={currentPage === 1}
-                                                        aria-label={t("home.prevPage")}
-                                                    >
-                                                        <i
-                                                            className="bi bi-chevron-left"
-                                                            aria-hidden="true"
-                                                        />
-                                                    </button>
-                                                </li>
-
-                                                {getPaginationPages(currentPage, totalPages).map(
-                                                    (page, index) =>
-                                                        page === "…" ? (
-                                                            <li
-                                                                key={`gap-${index}`}
-                                                                className="page-item disabled"
-                                                            >
-                                                                <span className="page-link">…</span>
-                                                            </li>
-                                                        ) : (
-                                                            <li
-                                                                key={page}
-                                                                className={`page-item${
-                                                                    page === currentPage
-                                                                        ? " active"
-                                                                        : ""
-                                                                }`}
-                                                            >
-                                                                <button
-                                                                    type="button"
-                                                                    className="page-link"
-                                                                    onClick={() => handlePageChange(page)}
-                                                                    aria-current={
-                                                                        page === currentPage
-                                                                            ? "page"
-                                                                            : undefined
-                                                                    }
-                                                                >
-                                                                    {formatNumber(page)}
-                                                                </button>
-                                                            </li>
-                                                        )
-                                                )}
-
-                                                <li
-                                                    className={`page-item${
-                                                        currentPage === totalPages ? " disabled" : ""
-                                                    }`}
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        className="page-link"
-                                                        onClick={() => handlePageChange(currentPage + 1)}
-                                                        disabled={currentPage === totalPages}
-                                                        aria-label={t("home.nextPage")}
-                                                    >
-                                                        <i
-                                                            className="bi bi-chevron-right"
-                                                            aria-hidden="true"
-                                                        />
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </nav>
                                     )}
 
-                                    <p className="hm-showing">
-                                        {t("home.showing", {
-                                            from: formatNumber(
-                                                (currentPage - 1) * PAGE_SIZE + 1
-                                            ),
-                                            to: formatNumber(
-                                                Math.min(currentPage * PAGE_SIZE, catalogTotal)
-                                            ),
-                                            total: formatNumber(catalogTotal),
-                                        })}
-                                    </p>
-                                </>
-                            )}
+                                    {catalogLoading || awaitingCategoryResolution ? (
+                                        <BookSkeletonGrid count={10} />
+                                    ) : catalogError ? (
+                                        <ErrorCard
+                                            title={t("home.booksCouldntLoad")}
+                                            message={catalogError}
+                                            onRetry={() => setReloadToken((token) => token + 1)}
+                                        />
+                                    ) : catalogBooks.length === 0 ? (
+                                        <EmptyState
+                                            title={t("home.noMatch")}
+                                            message={t("home.noMatchBody")}
+                                            actionLabel={t("home.clearFilters")}
+                                            onAction={handleClearFilters}
+                                        />
+                                    ) : (
+                                        <>
+                                            <BookGrid
+                                                books={catalogBooks}
+                                                onAddToCart={handleAddToCart}
+                                                addingToCart={addingToCart}
+                                                cartQuantities={cartQuantities}
+                                            />
+
+                                            {totalPages > 1 && (
+                                                <nav className="hm-pagination" aria-label={t("home.catalogPages")}>
+                                                    <ul className="pagination pagination-sm">
+                                                        <li
+                                                            className={`page-item${
+                                                                currentPage === 1 ? " disabled" : ""
+                                                            }`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="page-link"
+                                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                                disabled={currentPage === 1}
+                                                                aria-label={t("home.prevPage")}
+                                                            >
+                                                                <i
+                                                                    className="bi bi-chevron-left"
+                                                                    aria-hidden="true"
+                                                                />
+                                                            </button>
+                                                        </li>
+
+                                                        {getPaginationPages(currentPage, totalPages).map(
+                                                            (page, index) =>
+                                                                page === "…" ? (
+                                                                    <li
+                                                                        key={`gap-${index}`}
+                                                                        className="page-item disabled"
+                                                                    >
+                                                                        <span className="page-link">…</span>
+                                                                    </li>
+                                                                ) : (
+                                                                    <li
+                                                                        key={page}
+                                                                        className={`page-item${
+                                                                            page === currentPage
+                                                                                ? " active"
+                                                                                : ""
+                                                                        }`}
+                                                                    >
+                                                                        <button
+                                                                            type="button"
+                                                                            className="page-link"
+                                                                            onClick={() => handlePageChange(page)}
+                                                                            aria-current={
+                                                                                page === currentPage
+                                                                                    ? "page"
+                                                                                    : undefined
+                                                                            }
+                                                                        >
+                                                                            {formatNumber(page)}
+                                                                        </button>
+                                                                    </li>
+                                                                )
+                                                        )}
+
+                                                        <li
+                                                            className={`page-item${
+                                                                currentPage === totalPages ? " disabled" : ""
+                                                            }`}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="page-link"
+                                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                                disabled={currentPage === totalPages}
+                                                                aria-label={t("home.nextPage")}
+                                                            >
+                                                                <i
+                                                                    className="bi bi-chevron-right"
+                                                                    aria-hidden="true"
+                                                                />
+                                                            </button>
+                                                        </li>
+                                                    </ul>
+                                                </nav>
+                                            )}
+
+                                            <p className="hm-showing">
+                                                {t("home.showing", {
+                                                    from: formatNumber(
+                                                        (currentPage - 1) * PAGE_SIZE + 1
+                                                    ),
+                                                    to: formatNumber(
+                                                        Math.min(currentPage * PAGE_SIZE, catalogTotal)
+                                                    ),
+                                                    total: formatNumber(catalogTotal),
+                                                })}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
                         </section>
                     ) : (
                         <>
                             <section className="hm-section" aria-labelledby="hm-new-arrivals">
                                 <SectionHeader
                                     id="hm-new-arrivals"
+                                    eyebrow={t("home.newArrivalsEyebrow")}
                                     title={t("home.newArrivals")}
                                     subtitle={t("home.newArrivalsSub")}
                                     icon="bi-stars"
@@ -1566,6 +1648,7 @@ export default function HomePage() {
                             <section className="hm-section" aria-labelledby="hm-categories">
                                 <SectionHeader
                                     id="hm-categories"
+                                    eyebrow={t("home.categoriesEyebrow")}
                                     title={t("home.browseByCategory")}
                                     subtitle={t("home.browseByCategorySub")}
                                     icon="bi-grid-3x3-gap"
@@ -1598,9 +1681,12 @@ export default function HomePage() {
                                 )}
                             </section>
 
+                            <OffersBand onOpen={handleOpenOffers} />
+
                             <section className="hm-section" aria-labelledby="hm-writers">
                                 <SectionHeader
                                     id="hm-writers"
+                                    eyebrow={t("home.writersEyebrow")}
                                     title={t("home.popularWriters")}
                                     subtitle={t("home.popularWritersSub")}
                                     icon="bi-pencil-square"
@@ -1633,6 +1719,7 @@ export default function HomePage() {
                             <section className="hm-section" aria-labelledby="hm-publishers">
                                 <SectionHeader
                                     id="hm-publishers"
+                                    eyebrow={t("home.publishersEyebrow")}
                                     title={t("home.publishers")}
                                     subtitle={t("home.publishersSub")}
                                     icon="bi-building"
@@ -1665,6 +1752,7 @@ export default function HomePage() {
                             <section className="hm-section" aria-labelledby="hm-all-books">
                                 <SectionHeader
                                     id="hm-all-books"
+                                    eyebrow={t("home.allBooksEyebrow")}
                                     title={t("home.allBooks")}
                                     subtitle={
                                         landingTotal > 0
@@ -1700,7 +1788,7 @@ export default function HomePage() {
                                         <div className="hm-section-cta">
                                             <button
                                                 type="button"
-                                                className="hm-btn hm-btn--outline"
+                                                className="hm-btn hm-btn--outline hm-btn--lg"
                                                 onClick={() => handleSeeAllBooks()}
                                             >
                                                 {t("common.browseAllBooks")}

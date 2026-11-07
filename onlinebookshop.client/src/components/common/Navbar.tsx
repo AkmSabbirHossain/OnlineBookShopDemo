@@ -1,5 +1,5 @@
-﻿// =============================================
-// Navbar.tsx —
+// =============================================
+// Navbar.tsx — storefront header
 // =============================================
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -14,13 +14,9 @@ import { useLanguage } from "../../i18n/language-context";
 import { bookPath, categoryPath } from "../../utils/slug";
 import type { BookResponseDto, CategoryResponseDto } from "../../types/book.types";
 import brandIcon from "../../assets/brand-icon.svg";
+import "./navbar.css";
 
 // ── SVG Icons ────────────────────────────────
-//const BookIcon = () => (
-//    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-//        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-//    </svg>
-//);
 const CartIcon = () => (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
@@ -201,6 +197,37 @@ export default function Navbar() {
         return () => document.removeEventListener("mousedown", handler);
     }, []);
 
+    // ── Drawer behaviour ──
+    const closeMobileMenu = () => setMobileMenuOpen(false);
+
+    useEffect(() => {
+        if (!mobileMenuOpen) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => { document.body.style.overflow = previous; };
+    }, [mobileMenuOpen]);
+
+    useEffect(() => {
+        if (!mobileMenuOpen && !dropdownOpen && !catDropdownOpen) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            setMobileMenuOpen(false);
+            setDropdownOpen(false);
+            setCatDropdownOpen(false);
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, [mobileMenuOpen, dropdownOpen, catDropdownOpen]);
+
+    useEffect(() => {
+        const media = window.matchMedia("(min-width: 901px)");
+        const onChange = () => {
+            if (media.matches) setMobileMenuOpen(false);
+        };
+        media.addEventListener("change", onChange);
+        return () => media.removeEventListener("change", onChange);
+    }, []);
+
     const isNavActive = (to: string) => {
         const [path, query] = to.split("?");
         if (query) {
@@ -276,515 +303,6 @@ export default function Navbar() {
 
     return (
         <>
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Sora:wght@400;500;600;700;800&display=swap');
-
-                :root {
-                    --brand:       #e8401c;
-                    --brand-dark:  #c2340f;
-                    --brand-light: #fff4f1;
-                    --navy:        #1b2a4a;
-                    --text:        #1e293b;
-                    --muted:       #64748b;
-                    --border:      #e8edf3;
-                    --surface:     #ffffff;
-                    --topbar-bg:   #1b2a4a;
-                    --nb-header-h: 107px;
-                }
-
-                .nb-root * { box-sizing: border-box; margin: 0; padding: 0; }
-                .nb-root {
-                    font-family: 'Sora', 'Hind Siliguri', sans-serif;
-                    position: sticky;
-                    top: 0;
-                    z-index: 1000;
-                }
-                .nb-topbar, .nb-topbar * { box-sizing: border-box; margin: 0; padding: 0; }
-                .nb-topbar { font-family: 'Sora', 'Hind Siliguri', sans-serif; }
-
-                /* ── Top bar ── */
-                .nb-topbar {
-                    background: var(--topbar-bg);
-                    color: rgba(255,255,255,0.7);
-                    font-size: 11.5px;
-                    font-weight: 500;
-                    letter-spacing: 0.02em;
-                    padding: 5px 0;
-                    border-bottom: 1px solid rgba(255,255,255,0.06);
-                }
-                .nb-topbar-inner {
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 0 20px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 12px;
-                }
-                .nb-topbar-left { display: flex; align-items: center; gap: 16px; }
-                .nb-topbar-right { display: flex; align-items: center; gap: 16px; }
-                .nb-topbar-item {
-                    display: flex; align-items: center; gap: 5px;
-                    color: rgba(255,255,255,0.65);
-                    text-decoration: none;
-                    transition: color 0.15s;
-                }
-                .nb-topbar-item:hover { color: #fff; }
-                .nb-topbar-divider { width: 1px; height: 12px; background: rgba(255,255,255,0.15); }
-
-                /* ── Main bar ── */
-                .nb-main {
-                    background: #fff;
-                    border-bottom: 1px solid var(--border);
-                    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-                }
-                .nb-main-inner {
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    padding: 0 20px;
-                    display: flex;
-                    align-items: center;
-                    gap: 20px;
-                    height: 68px;
-                }
-
-                /* ── Brand ── */
-                .nb-brand {
-                    display: flex; align-items: center; gap: 10px;
-                    text-decoration: none; flex-shrink: 0; user-select: none;
-                }
-                .nb-brand-icon {
-                    width: 40px; height: 40px; background: var(--brand);
-                    border-radius: 10px; display: flex; align-items: center; justify-content: center;
-                    color: #fff; box-shadow: 0 4px 12px rgba(232,64,28,0.35); flex-shrink: 0;
-                }
-                .nb-brand-text { display: flex; flex-direction: column; line-height: 1; }
-                .nb-brand-name { font-size: 18px; font-weight: 800; color: var(--navy); letter-spacing: -0.03em; }
-                .nb-brand-name span { color: var(--brand); }
-                .nb-brand-tagline {
-                    font-size: 9.5px; font-weight: 500; color: var(--muted);
-                    letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px;
-                }
-
-                /* ── Search ── */
-                .nb-search { flex: 1; max-width: 560px; }
-                .nb-search-form { display: flex; width: 100%; position: relative; }
-                .nb-search-input-wrap { position: relative; flex: 1; display: flex; }
-                .nb-search-input {
-                    flex: 1; border: 2px solid var(--border); border-right: none;
-                    border-radius: 10px 0 0 10px; padding: 0 40px 0 16px; height: 44px;
-                    font-size: 13.5px; font-family: inherit; color: var(--text); outline: none;
-                    background: #f8fafc; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-                    width: 100%;
-                    /* Suppress ALL browser-native clear buttons */
-                    -webkit-appearance: none;
-                    appearance: none;
-                }
-                .nb-search-input::placeholder { color: #a0aec0; }
-                .nb-search-input:focus {
-                    border-color: var(--brand); background: #fff;
-                    box-shadow: 0 0 0 3px rgba(232,64,28,0.1);
-                }
-                .nb-search-input.has-value { border-color: var(--brand); background: #fff; }
-                /* Hide browser-native clear button on ALL browsers */
-                .nb-search-input::-webkit-search-cancel-button,
-                .nb-search-input::-webkit-search-decoration,
-                .nb-search-input::-ms-clear,
-                .nb-search-input::-ms-reveal {
-                    display: none;
-                    -webkit-appearance: none;
-                    appearance: none;
-                }
-
-                /* Custom clear (×) button */
-                .nb-search-clear {
-                    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-                    background: #e2e8f0; border: none; border-radius: 50%;
-                    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
-                    cursor: pointer; color: var(--muted); padding: 0;
-                    transition: background 0.15s, color 0.15s; flex-shrink: 0;
-                }
-                .nb-search-clear:hover { background: var(--brand); color: #fff; }
-
-                .nb-search-btn {
-                    background: var(--brand); border: 2px solid var(--brand); color: #fff;
-                    border-radius: 0 10px 10px 0; padding: 0 18px; height: 44px; cursor: pointer;
-                    display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
-                    font-family: inherit; transition: background 0.2s, border-color 0.2s;
-                    white-space: nowrap; flex-shrink: 0;
-                }
-                .nb-search-btn:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
-
-                /* ── Search suggestions ── */
-                .bsb-panel {
-                    position: absolute; top: calc(100% + 10px); left: 0; right: 0;
-                    background: #fff; border: 1px solid var(--border); border-radius: 14px;
-                    box-shadow: 0 24px 60px -20px rgba(15,23,42,0.35), 0 8px 20px -12px rgba(15,23,42,0.2);
-                    z-index: 30; overflow: hidden; animation: bsbIn 0.16s ease;
-                }
-                @keyframes bsbIn {
-                    from { opacity: 0; transform: translateY(-6px); }
-                    to   { opacity: 1; transform: translateY(0); }
-                }
-                .bsb-head {
-                    padding: 10px 16px 6px; font-size: 10px; font-weight: 700;
-                    letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
-                }
-                .bsb-list {
-                    list-style: none; margin: 0; padding: 0 6px 6px;
-                    max-height: min(380px, calc(100vh - var(--nb-header-h) - 40px));
-                    overflow-y: auto;
-                }
-                .bsb-item {
-                    display: flex; align-items: center; gap: 12px;
-                    padding: 8px 10px; border-radius: 10px; cursor: pointer;
-                }
-                .bsb-item.is-active { background: #f8fafc; }
-                .bsb-thumb {
-                    width: 40px; height: 54px; object-fit: cover; border-radius: 6px;
-                    background: #f1f5f9; flex-shrink: 0; border: 1px solid var(--border);
-                }
-                .bsb-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-                .bsb-title {
-                    font-size: 13px; font-weight: 700; color: var(--navy);
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                }
-                .bsb-meta {
-                    display: flex; align-items: center; gap: 4px;
-                    font-size: 11.5px; color: var(--muted);
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                }
-                .bsb-meta .bi-star-fill { color: #f59e0b; font-size: 10px; }
-                .bsb-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-                .bsb-price { font-size: 13px; font-weight: 700; color: var(--brand); white-space: nowrap; }
-                .bsb-old { font-size: 10.5px; color: #a0aec0; text-decoration: line-through; }
-                .bsb-out {
-                    font-size: 9.5px; font-weight: 700; color: #b91c1c;
-                    text-transform: uppercase; letter-spacing: 0.04em;
-                }
-                .bsb-mark { background: #fff1d6; color: inherit; padding: 0 1px; border-radius: 2px; }
-                .bsb-viewall {
-                    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-                    width: 100%; padding: 11px 16px; background: #f8fafc;
-                    border: none; border-top: 1px solid var(--border);
-                    color: var(--brand); font-family: inherit; font-size: 12.5px; font-weight: 700;
-                    cursor: pointer; text-align: left;
-                }
-                .bsb-viewall:hover { background: var(--brand-light); }
-                .bsb-state {
-                    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-                    padding: 18px 16px; font-size: 12.5px; color: var(--muted);
-                }
-                .bsb-state i { color: #94a3b8; }
-                .bsb-error { color: #b91c1c; }
-                .bsb-inline-action {
-                    background: none; border: none; padding: 0; cursor: pointer;
-                    color: var(--brand); font-family: inherit; font-size: 12.5px; font-weight: 700;
-                }
-                .bsb-inline-action:hover { text-decoration: underline; }
-                .bsb-spinner {
-                    width: 14px; height: 14px; border-radius: 50%;
-                    border: 2px solid #e2e8f0; border-top-color: var(--brand);
-                    animation: bsbSpin 0.7s linear infinite; display: inline-block; flex-shrink: 0;
-                }
-                .bsb-spinner.floating { position: absolute; right: 12px; top: 50%; margin-top: -7px; }
-                @keyframes bsbSpin { to { transform: rotate(360deg); } }
-
-                /* ── Action icons ── */
-                .nb-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
-                .nb-icon-btn {
-                    position: relative; display: flex; flex-direction: column;
-                    align-items: center; justify-content: center; gap: 2px;
-                    width: 52px; height: 52px; border-radius: 10px;
-                    color: var(--navy); text-decoration: none;
-                    transition: background 0.15s, color 0.15s; cursor: pointer;
-                    background: transparent; border: none; font-family: inherit;
-                }
-                .nb-icon-btn:hover { background: #f1f5f9; color: var(--brand); }
-                .nb-icon-label {
-                    font-size: 9px; font-weight: 600; letter-spacing: 0.04em;
-                    color: var(--muted); text-transform: uppercase;
-                }
-                .nb-icon-btn:hover .nb-icon-label { color: var(--brand); }
-                .nb-cart-badge {
-                    position: absolute; top: 6px; right: 6px;
-                    background: var(--brand); color: #fff; font-size: 9px; font-weight: 700;
-                    min-width: 17px; height: 17px; border-radius: 10px;
-                    display: flex; align-items: center; justify-content: center;
-                    padding: 0 4px; border: 2px solid #fff; line-height: 1;
-                }
-
-                /* ── Sign In button ── */
-                .nb-signin-btn {
-                    display: flex; align-items: center; gap: 7px;
-                    background: var(--brand); color: #fff !important; border-radius: 10px;
-                    padding: 0 16px; height: 40px; font-size: 13px; font-weight: 700;
-                    text-decoration: none; transition: background 0.2s, transform 0.15s;
-                    white-space: nowrap; flex-shrink: 0; border: none; cursor: pointer;
-                    font-family: inherit; box-shadow: 0 4px 12px rgba(232,64,28,0.3);
-                }
-                .nb-signin-btn:hover { background: var(--brand-dark); transform: translateY(-1px); }
-
-                /* ── User dropdown trigger ── */
-                .nb-user-btn {
-                    display: flex; align-items: center; gap: 8px;
-                    background: #f8fafc; border: 1.5px solid var(--border); border-radius: 10px;
-                    padding: 0 12px 0 8px; height: 40px; font-size: 13px; font-weight: 600;
-                    color: var(--navy); cursor: pointer; font-family: inherit;
-                    transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
-                }
-                .nb-user-btn:hover { border-color: var(--brand); background: var(--brand-light); }
-                .nb-user-avatar {
-                    width: 28px; height: 28px; border-radius: 8px;
-                    background: linear-gradient(135deg, var(--brand) 0%, #ff6b45 100%);
-                    display: flex; align-items: center; justify-content: center;
-                    color: #fff; font-size: 12px; font-weight: 800; flex-shrink: 0;
-                }
-                .nb-user-name { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-                /* ── Dropdown menu ── */
-                .nb-dropdown {
-                    position: absolute; top: calc(100% + 8px); right: 0;
-                    background: #fff; border: 1px solid var(--border); border-radius: 14px;
-                    min-width: 230px; box-shadow: 0 16px 48px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
-                    z-index: 9999; overflow: hidden; animation: nbDropIn 0.18s ease;
-                }
-                @keyframes nbDropIn {
-                    from { opacity: 0; transform: translateY(-8px) scale(0.97); }
-                    to   { opacity: 1; transform: translateY(0) scale(1); }
-                }
-                .nb-dropdown-header {
-                    padding: 14px 16px 12px;
-                    background: linear-gradient(135deg, #fff4f1 0%, #fff 100%);
-                    border-bottom: 1px solid var(--border);
-                }
-                .nb-dropdown-user-name { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
-                .nb-dropdown-email { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
-                .nb-dropdown-role {
-                    display: inline-block; padding: 2px 8px; border-radius: 20px;
-                    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 6px;
-                }
-                .nb-dropdown-body { padding: 6px 0; }
-                .nb-dropdown-item {
-                    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-                    font-size: 13.5px; font-weight: 500; color: var(--text); text-decoration: none;
-                    cursor: pointer; background: transparent; border: none; width: 100%;
-                    font-family: inherit; transition: background 0.15s, color 0.15s;
-                }
-                .nb-dropdown-item:hover { background: #f8fafc; color: var(--brand); }
-                .nb-dropdown-item svg { color: var(--muted); flex-shrink: 0; }
-                .nb-dropdown-item:hover svg { color: var(--brand); }
-                .nb-dropdown-divider { height: 1px; background: var(--border); margin: 4px 0; }
-                .nb-dropdown-item.danger { color: #dc2626; }
-                .nb-dropdown-item.danger:hover { background: #fef2f2; }
-                .nb-dropdown-item.danger svg { color: #dc2626; }
-
-                /* ── Category nav ── */
-                .nb-cat { background: var(--navy); border-top: none; position: relative; }
-                .nb-cat-inner {
-                    max-width: 1200px; margin: 0 auto; padding: 0 20px;
-                    display: flex; align-items: center; gap: 2px;
-                }
-                .nb-cat-link {
-                    display: inline-flex; align-items: center; gap: 5px; padding: 0 14px; height: 38px;
-                    font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.75);
-                    text-decoration: none; white-space: nowrap; border-radius: 0;
-                    transition: color 0.15s, background 0.15s; letter-spacing: 0.01em; position: relative;
-                    background: transparent; border: none; cursor: pointer; font-family: inherit;
-                }
-                .nb-cat-link::after {
-                    content: ''; position: absolute; bottom: 0; left: 14px; right: 14px;
-                    height: 2px; background: var(--brand); transform: scaleX(0);
-                    transition: transform 0.2s ease; border-radius: 2px 2px 0 0;
-                }
-                .nb-cat-link:hover { color: #fff; }
-                .nb-cat-link:hover::after { transform: scaleX(1); }
-                .nb-cat-link.active { color: #fff; }
-                .nb-cat-link.active::after { transform: scaleX(1); }
-                .nb-cat-link .nb-cat-caret { color: rgba(255,255,255,0.5); }
-                .nb-cat-highlight { color: #fbbf24 !important; font-weight: 700; }
-                .nb-cat-highlight:hover { color: #fde68a !important; }
-
-                /* ── Categories dropdown ── */
-                .nb-cat-item { position: relative; }
-                .nb-cat-menu {
-                    position: absolute; top: 100%; left: 0; min-width: 230px;
-                    background: #fff; border: 1px solid var(--border); border-radius: 0 0 12px 12px;
-                    box-shadow: 0 18px 44px rgba(15,23,42,0.25); padding: 6px; z-index: 9999;
-                    max-height: 420px; overflow-y: auto;
-                    animation: nbDropIn 0.16s ease;
-                }
-                .nb-cat-menu-link {
-                    display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 8px;
-                    font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none;
-                    transition: background 0.12s, color 0.12s;
-                }
-                .nb-cat-menu-link:hover { background: var(--brand-light); color: var(--brand); }
-                .nb-cat-menu-link i { color: #94a3b8; font-size: 12px; }
-                .nb-cat-menu-link:hover i { color: var(--brand); }
-                .nb-cat-menu-divider { height: 1px; background: var(--border); margin: 5px 10px; }
-                .nb-cat-menu-all { color: var(--brand); }
-
-                /* ── Mobile search row ── */
-                .nb-mobile-search {
-                    display: none; padding: 10px 16px; background: #fff; border-top: 1px solid var(--border);
-                }
-                .nb-mobile-search-form { display: flex; width: 100%; position: relative; }
-                .nb-mobile-search-input-wrap { position: relative; flex: 1; display: flex; }
-                .nb-mobile-search-input {
-                    flex: 1; border: 2px solid var(--border); border-right: none;
-                    border-radius: 8px 0 0 8px; padding: 0 36px 0 14px; height: 40px;
-                    font-size: 13px; font-family: inherit; color: var(--text); outline: none;
-                    background: #f8fafc; transition: border-color 0.2s; width: 100%;
-                    /* Suppress browser-native clear buttons */
-                    -webkit-appearance: none;
-                    appearance: none;
-                }
-                .nb-mobile-search-input:focus { border-color: var(--brand); background: #fff; }
-                .nb-mobile-search-input.has-value { border-color: var(--brand); background: #fff; }
-                /* Hide browser-native clear button */
-                .nb-mobile-search-input::-webkit-search-cancel-button,
-                .nb-mobile-search-input::-webkit-search-decoration,
-                .nb-mobile-search-input::-ms-clear,
-                .nb-mobile-search-input::-ms-reveal {
-                    display: none;
-                    -webkit-appearance: none;
-                    appearance: none;
-                }
-                .nb-mobile-search-clear {
-                    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-                    background: #e2e8f0; border: none; border-radius: 50%;
-                    width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
-                    cursor: pointer; color: var(--muted); padding: 0; transition: background 0.15s, color 0.15s;
-                }
-                .nb-mobile-search-clear:hover { background: var(--brand); color: #fff; }
-                .nb-mobile-search-btn {
-                    background: var(--brand); border: 2px solid var(--brand); color: #fff;
-                    border-radius: 0 8px 8px 0; padding: 0 14px; height: 40px; cursor: pointer;
-                    display: flex; align-items: center; justify-content: center;
-                    font-family: inherit; transition: background 0.2s; flex-shrink: 0;
-                }
-                .nb-mobile-search-btn:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
-
-                /* ── Hamburger ── */
-                .nb-hamburger {
-                    display: none; flex-direction: column; align-items: center; justify-content: center;
-                    gap: 5px; width: 40px; height: 40px; border: 1.5px solid var(--border);
-                    border-radius: 9px; background: transparent; cursor: pointer;
-                    flex-shrink: 0; padding: 0; transition: background 0.15s;
-                }
-                .nb-hamburger:hover { background: #f1f5f9; }
-                .nb-hamburger-line {
-                    width: 18px; height: 2px; background: var(--navy); border-radius: 2px;
-                    transition: all 0.25s ease; transform-origin: center;
-                }
-                .nb-hamburger.open .nb-hamburger-line:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-                .nb-hamburger.open .nb-hamburger-line:nth-child(2) { opacity: 0; transform: scaleX(0); }
-                .nb-hamburger.open .nb-hamburger-line:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-
-                /* ── Mobile drawer ── */
-                .nb-mobile-menu {
-                    display: none; flex-direction: column; background: #fff;
-                    border-top: 1px solid var(--border); animation: nbSlideDown 0.22s ease;
-                    max-height: calc(100vh - 120px); overflow-y: auto;
-                }
-                @keyframes nbSlideDown {
-                    from { opacity: 0; transform: translateY(-6px); }
-                    to   { opacity: 1; transform: translateY(0); }
-                }
-                .nb-mobile-menu.open { display: flex; }
-                .nb-mobile-user-block {
-                    display: flex; align-items: center; gap: 12px; padding: 16px 20px;
-                    background: linear-gradient(135deg, #fff4f1 0%, #fff 100%);
-                    border-bottom: 1px solid var(--border);
-                }
-                .nb-mobile-user-avatar {
-                    width: 44px; height: 44px; border-radius: 12px;
-                    background: linear-gradient(135deg, var(--brand) 0%, #ff6b45 100%);
-                    display: flex; align-items: center; justify-content: center;
-                    color: #fff; font-size: 19px; font-weight: 800; flex-shrink: 0;
-                }
-                .nb-mobile-user-name { font-size: 14px; font-weight: 700; color: var(--navy); }
-                .nb-mobile-user-email { font-size: 11.5px; color: var(--muted); margin-top: 2px; word-break: break-all; }
-                .nb-mobile-user-role {
-                    display: inline-block; margin-top: 5px; padding: 2px 9px; border-radius: 20px;
-                    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-                }
-                .nb-mobile-link {
-                    display: flex; align-items: center; gap: 12px; padding: 14px 20px;
-                    font-size: 14px; font-weight: 500; color: var(--text); text-decoration: none;
-                    border-bottom: 1px solid #f1f5f9; cursor: pointer; background: transparent;
-                    border-left: none; border-right: none; border-top: none;
-                    width: 100%; font-family: inherit; transition: background 0.15s, color 0.15s; text-align: left;
-                }
-                .nb-mobile-link:hover { background: #f8fafc; color: var(--brand); }
-                .nb-mobile-link svg { color: var(--muted); flex-shrink: 0; }
-                .nb-mobile-link:hover svg { color: var(--brand); }
-                .nb-mobile-link.danger { color: #dc2626; }
-                .nb-mobile-link.danger:hover { background: #fef2f2; }
-                .nb-mobile-link.danger svg { color: #dc2626; }
-                .nb-mobile-divider { height: 1px; background: var(--border); margin: 4px 0; }
-                .nb-mobile-section-title {
-                    font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
-                    text-transform: uppercase; color: var(--muted); padding: 12px 20px 6px;
-                }
-                .nb-mobile-cats { padding: 8px 16px 16px; background: var(--navy); }
-                .nb-mobile-cats-title {
-                    font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
-                    text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 10px; padding: 8px 4px 0;
-                }
-                .nb-mobile-cats-grid { display: flex; flex-wrap: wrap; gap: 7px; }
-                .nb-mobile-cat-chip {
-                    display: inline-flex; align-items: center; padding: 6px 13px;
-                    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
-                    border-radius: 20px; font-size: 12px; font-weight: 600;
-                    color: rgba(255,255,255,0.8); text-decoration: none; transition: background 0.15s, color 0.15s;
-                }
-                .nb-mobile-cat-chip:hover,
-                .nb-mobile-cat-chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
-                .nb-mobile-cat-chip.highlight { color: #fbbf24; border-color: rgba(251,191,36,0.3); }
-                .nb-mobile-cat-chip.highlight:hover { background: #fbbf24; color: var(--navy); border-color: #fbbf24; }
-
-                /* ── Responsive ── */
-                @media (max-width: 900px) {
-                    :root { --nb-header-h: 130px; }
-                    .nb-search { display: none; }
-                    .nb-mobile-search { display: block; }
-                    .nb-cat { display: none; }
-                    .nb-hamburger { display: flex; }
-                    .nb-icon-label { display: none; }
-                    .nb-icon-btn { width: 44px; height: 44px; }
-                    .nb-topbar-left { display: none; }
-                }
-                @media (max-width: 600px) {
-                    :root { --nb-header-h: 116px; }
-                    .nb-user-name { display: none; }
-                    .nb-main-inner { padding: 0 12px; gap: 8px; height: 58px; }
-                    .nb-brand-tagline { display: none; }
-                    .nb-brand-name { font-size: 16px; }
-                    .nb-brand-icon { width: 34px; height: 34px; border-radius: 8px; }
-                    .nb-mobile-search { padding: 8px 12px; }
-                    .nb-wishlist-icon { display: none; }
-                    .nb-topbar { display: none; }
-                }
-                @media (max-width: 480px) {
-                    .nb-main-inner { gap: 6px; padding: 0 10px; }
-                    .nb-icon-btn { width: 40px; height: 40px; }
-                    .nb-signin-btn { width: 40px; height: 40px; padding: 0; justify-content: center; }
-                    .nb-signin-text { display: none; }
-                }
-                @media (max-width: 380px) {
-                    .nb-brand-name { font-size: 14px; }
-                    .nb-brand-icon { width: 30px; height: 30px; }
-                    .nb-icon-btn { width: 38px; height: 38px; }
-                    .nb-signin-btn { width: 38px; height: 38px; }
-                    .nb-main-inner { gap: 4px; padding: 0 8px; }
-                }
-                @media (max-width: 340px) {
-                    .nb-brand-text { display: none; }
-                }
-            `}</style>
-
             {/* ── Top bar (scrolls away) ── */}
             <div className="nb-topbar">
                 <div className="nb-topbar-inner">
@@ -803,18 +321,9 @@ export default function Navbar() {
 
             {/* ── Sticky header ── */}
             <div className="nb-root">
-                {/* ── Main bar ── */}
                 <div className="nb-main">
                     <div className="nb-main-inner">
 
-                        {/* Brand */}
-                        {/*<Link className="nb-brand" to="/">*/}
-                        {/*    <div className="nb-brand-icon"><BookIcon /></div>*/}
-                        {/*    <div className="nb-brand-text">*/}
-                        {/*        <span className="nb-brand-name">Sabbir Book<span>Mall</span></span>*/}
-                        {/*        <span className="nb-brand-tagline">Welcome to book world</span>*/}
-                        {/*    </div>*/}
-                        {/*</Link>*/}
                         {/* Brand */}
                         <Link className="nb-brand" to="/">
                             <img src={brandIcon} alt="Sabbir Book Mall" className="nb-brand-icon" />
@@ -845,7 +354,7 @@ export default function Navbar() {
                                 <HeartIcon />
                                 <span className="nb-icon-label">{t("nav.wishlist")}</span>
                             </Link>
-                       
+
                             <Link
                                 className="nb-icon-btn"
                                 to={AuthService.isAuthenticated() ? "/cart" : "/auth"}
@@ -860,15 +369,22 @@ export default function Navbar() {
 
                             {user ? (
                                 <div style={{ position: "relative" }} ref={dropdownRef}>
-                                    <button className="nb-user-btn" onClick={() => setDropdownOpen((p) => !p)}>
-                                        {/*<div className="nb-user-avatar">{user.name.charAt(0).toUpperCase()}</div>*/}
-                                        <div className="nb-user-avatar"><span>{user?.name ? user.name.charAt(0).toUpperCase() : "U"}</span></div>
+                                    <button
+                                        type="button"
+                                        className="nb-user-btn"
+                                        onClick={() => setDropdownOpen((p) => !p)}
+                                        aria-haspopup="menu"
+                                        aria-expanded={dropdownOpen}
+                                    >
+                                        <span className="nb-user-avatar">
+                                            {user.name.charAt(0).toUpperCase() || "U"}
+                                        </span>
                                         <span className="nb-user-name">{user.name.split(" ")[0]}</span>
                                         <ChevronDownIcon open={dropdownOpen} />
                                     </button>
 
                                     {dropdownOpen && (
-                                        <div className="nb-dropdown">
+                                        <div className="nb-dropdown" role="menu">
                                             <div className="nb-dropdown-header">
                                                 <div className="nb-dropdown-user-name">{user.name}</div>
                                                 <div className="nb-dropdown-email">{user.email}</div>
@@ -877,23 +393,21 @@ export default function Navbar() {
                                                 </span>
                                             </div>
                                             <div className="nb-dropdown-body">
-                                                <Link className="nb-dropdown-item" to="/profile" onClick={() => setDropdownOpen(false)}>
+                                                <Link className="nb-dropdown-item" role="menuitem" to="/profile" onClick={() => setDropdownOpen(false)}>
                                                     <UserIcon /> {t("nav.myProfile")}
                                                 </Link>
                                                 {user.role === "Customer" && (<>
-                                                    <Link className="nb-dropdown-item" to="/orders" onClick={() => setDropdownOpen(false)}><OrderIcon /> {t("nav.myOrders")}</Link>
-                                                    <Link className="nb-dropdown-item" to="/vendor/register" onClick={() => setDropdownOpen(false)}><ShopIcon /> {t("nav.becomeVendor")}</Link>
+                                                    <Link className="nb-dropdown-item" role="menuitem" to="/orders" onClick={() => setDropdownOpen(false)}><OrderIcon /> {t("nav.myOrders")}</Link>
+                                                    <Link className="nb-dropdown-item" role="menuitem" to="/vendor/register" onClick={() => setDropdownOpen(false)}><ShopIcon /> {t("nav.becomeVendor")}</Link>
                                                 </>)}
                                                 {user.role === "Vendor" && (<>
-                                                    <Link className="nb-dropdown-item" to="/vendor/dashboard" onClick={() => setDropdownOpen(false)}><ShopIcon /> {t("nav.vendorDashboard")}</Link>
-                                                
+                                                    <Link className="nb-dropdown-item" role="menuitem" to="/vendor/dashboard" onClick={() => setDropdownOpen(false)}><ShopIcon /> {t("nav.vendorDashboard")}</Link>
                                                 </>)}
                                                 {user.role === "Admin" && (<>
-                                                    <Link className="nb-dropdown-item" to="/admin/dashboard" onClick={() => setDropdownOpen(false)}><GearIcon /> {t("nav.adminPanel")}</Link>
-                                                    
+                                                    <Link className="nb-dropdown-item" role="menuitem" to="/admin/dashboard" onClick={() => setDropdownOpen(false)}><GearIcon /> {t("nav.adminPanel")}</Link>
                                                 </>)}
                                                 <div className="nb-dropdown-divider" />
-                                                <button className="nb-dropdown-item danger" onClick={handleLogout}><LogoutIcon /> {t("nav.logout")}</button>
+                                                <button type="button" className="nb-dropdown-item danger" role="menuitem" onClick={handleLogout}><LogoutIcon /> {t("nav.logout")}</button>
                                             </div>
                                         </div>
                                     )}
@@ -903,10 +417,12 @@ export default function Navbar() {
                             )}
 
                             <button
+                                type="button"
                                 className={`nb-hamburger${mobileMenuOpen ? " open" : ""}`}
                                 onClick={() => setMobileMenuOpen((p) => !p)}
                                 aria-label={t("nav.toggleMenu")}
                                 aria-expanded={mobileMenuOpen}
+                                aria-controls="nb-mobile-menu"
                             >
                                 <span className="nb-hamburger-line" />
                                 <span className="nb-hamburger-line" />
@@ -927,11 +443,14 @@ export default function Navbar() {
                     />
 
                     {/* ── Mobile drawer ── */}
-                    {/* ── Mobile drawer ── */}
-                    <div className={`nb-mobile-menu${mobileMenuOpen ? " open" : ""}`}>
+                    <div
+                        id="nb-mobile-menu"
+                        className={`nb-mobile-menu${mobileMenuOpen ? " open" : ""}`}
+                        aria-label={t("nav.navigation")}
+                    >
                         {user && (
                             <div className="nb-mobile-user-block">
-                                <div className="nb-mobile-user-avatar">{user.name.charAt(0).toUpperCase()}</div>
+                                <div className="nb-mobile-user-avatar">{user.name.charAt(0).toUpperCase() || "U"}</div>
                                 <div>
                                     <div className="nb-mobile-user-name">{user.name}</div>
                                     <div className="nb-mobile-user-email">{user.email}</div>
@@ -944,94 +463,80 @@ export default function Navbar() {
 
                         <div className="nb-mobile-section-title">{t("nav.navigation")}</div>
 
-                        <div style={{ padding: "0 16px 12px" }}>
-                            <div
-                                style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    letterSpacing: "0.08em",
-                                    textTransform: "uppercase",
-                                    color: "#64748b",
-                                    marginBottom: 6,
-                                }}
-                            >
-                                {t("nav.language")}
-                            </div>
+                        <div className="nb-mobile-lang">
+                            <div className="nb-mobile-lang-label">{t("nav.language")}</div>
                             <LanguageToggle variant="drawer" />
                         </div>
 
-                        <Link className="nb-mobile-link" to={AuthService.isAuthenticated() ? "/cart" : "/auth"}>
+                        <Link className="nb-mobile-link" to={AuthService.isAuthenticated() ? "/cart" : "/auth"} onClick={closeMobileMenu}>
                             <CartIcon /> {t("nav.cart")} {cartCount > 0 && `(${cartCount})`}
                         </Link>
 
                         {user ? (
                             <>
-                                <Link className="nb-mobile-link" to="/profile">
+                                <Link className="nb-mobile-link" to="/profile" onClick={closeMobileMenu}>
                                     <UserIcon /> {t("nav.myProfile")}
                                 </Link>
 
                                 {user.role === "Customer" && (
                                     <>
-                                        <Link className="nb-mobile-link" to="/orders">
+                                        <Link className="nb-mobile-link" to="/orders" onClick={closeMobileMenu}>
                                             <OrderIcon /> {t("nav.myOrders")}
                                         </Link>
-                                    
-                                        
-                                  
-                                        <Link className="nb-mobile-link" to="/vendor/register">
+                                        <Link className="nb-mobile-link" to="/vendor/register" onClick={closeMobileMenu}>
                                             <ShopIcon /> {t("nav.becomeVendor")}
                                         </Link>
                                     </>
                                 )}
 
                                 {user.role === "Vendor" && (<>
-                                    <Link className="nb-mobile-link" to="/vendor/dashboard">
+                                    <Link className="nb-mobile-link" to="/vendor/dashboard" onClick={closeMobileMenu}>
                                         <ShopIcon /> {t("nav.vendorDashboard")}
                                     </Link>
-                                    <Link className="nb-mobile-link" to="/vendor/earnings">
+                                    <Link className="nb-mobile-link" to="/vendor/earnings" onClick={closeMobileMenu}>
                                         <OrderIcon /> {t("nav.myEarnings")}
                                     </Link>
                                 </>)}
 
                                 {user.role === "Admin" && (<>
-                                    <Link className="nb-mobile-link" to="/admin/dashboard">
+                                    <Link className="nb-mobile-link" to="/admin/dashboard" onClick={closeMobileMenu}>
                                         <GearIcon /> {t("nav.adminPanel")}
                                     </Link>
-                                    <Link className="nb-mobile-link" to="/admin/vendor-payouts">
+                                    <Link className="nb-mobile-link" to="/admin/vendor-payouts" onClick={closeMobileMenu}>
                                         <OrderIcon /> {t("nav.vendorPayouts")}
                                     </Link>
                                 </>)}
 
                                 <div className="nb-mobile-divider" />
 
-                                <button className="nb-mobile-link danger" onClick={handleLogout}>
+                                <button type="button" className="nb-mobile-link danger" onClick={handleLogout}>
                                     <LogoutIcon /> {t("nav.logout")}
                                 </button>
                             </>
                         ) : (
-                            <Link className="nb-mobile-link" to="/auth">
+                            <Link className="nb-mobile-link" to="/auth" onClick={closeMobileMenu}>
                                 <UserIcon /> {t("nav.signInRegister")}
                             </Link>
                         )}
 
                         <div className="nb-mobile-section-title">{t("nav.siteMenu")}</div>
 
-                        <Link className="nb-mobile-link" to="/">
+                        <Link className="nb-mobile-link" to="/" onClick={closeMobileMenu}>
                             <ShopIcon /> {t("nav.home")}
                         </Link>
-                        <Link className="nb-mobile-link" to="/authors">
+                        <Link className="nb-mobile-link" to="/authors" onClick={closeMobileMenu}>
                             <UserIcon /> {t("nav.writers")}
                         </Link>
-                        <Link className="nb-mobile-link" to="/publishers">
+                        <Link className="nb-mobile-link" to="/publishers" onClick={closeMobileMenu}>
                             <GearIcon /> {t("nav.publishers")}
                         </Link>
-                        <Link className={`nb-mobile-link${isOffersActive() ? " text-warning" : ""}`} to={OFFERS_PATH}>
+                        <Link className={`nb-mobile-link${isOffersActive() ? " text-warning" : ""}`} to={OFFERS_PATH} onClick={closeMobileMenu}>
                             <CartIcon /> {t("nav.offers")}
                         </Link>
-                        <Link className="nb-mobile-link" to="/category/stationery">
+                        <Link className="nb-mobile-link" to="/category/stationery" onClick={closeMobileMenu}>
                             <OrderIcon /> {t("nav.stationery")}
                         </Link>
-                        <Link className="nb-mobile-link" to="/membership">
+                        <Link className="nb-mobile-link" to="/membership" onClick={closeMobileMenu}>
                             <HeartIcon /> {t("nav.membership")}
                         </Link>
 
@@ -1043,11 +548,12 @@ export default function Navbar() {
                                         key={cat.categoryId}
                                         className="nb-mobile-cat-chip"
                                         to={categoryPath(cat.name)}
+                                        onClick={closeMobileMenu}
                                     >
                                         {cat.name}
                                     </Link>
                                 ))}
-                                <Link className="nb-mobile-cat-chip" to="/books">
+                                <Link className="nb-mobile-cat-chip" to="/books" onClick={closeMobileMenu}>
                                     {t("nav.allBooks")}
                                 </Link>
                             </div>
@@ -1066,16 +572,18 @@ export default function Navbar() {
 
                             <div className="nb-cat-item" ref={catDropdownRef}>
                                 <button
+                                    type="button"
                                     className={`nb-cat-link${isCategoryAreaActive() ? " active" : ""}`}
                                     onClick={() => setCatDropdownOpen((p) => !p)}
                                     aria-expanded={catDropdownOpen}
+                                    aria-haspopup="menu"
                                 >
                                     {t("nav.categories")}
                                     <span className="nb-cat-caret"><ChevronDownIcon open={catDropdownOpen} /></span>
                                 </button>
 
                                 {catDropdownOpen && (
-                                    <div className="nb-cat-menu">
+                                    <div className="nb-cat-menu" role="menu">
                                         {navCategories.map((cat) => (
                                             <Link
                                                 key={cat.categoryId}
@@ -1133,6 +641,10 @@ export default function Navbar() {
                         </div>
                     </div>
                 </div>
+
+                {mobileMenuOpen && (
+                    <div className="nb-scrim" onClick={closeMobileMenu} aria-hidden="true" />
+                )}
             </div>
         </>
     );

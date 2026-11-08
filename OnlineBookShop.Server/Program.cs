@@ -217,14 +217,29 @@ using (var scope = app.Services.CreateScope())
     await InitialDataSeeder.SeedAsync(userManager, roleManager, context);
 }
 
-// Swagger UI
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// Swagger UI — শুধু Development-এ; production-এ API schema প্রকাশ হয় না
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Online Book Shop API v1");
-    c.RoutePrefix = "swagger"; // → http://localhost:<port>/swagger
-    c.DisplayRequestDuration();
-    c.EnableDeepLinking();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Online Book Shop API v1");
+        c.RoutePrefix = "swagger"; // → http://localhost:<port>/swagger
+        c.DisplayRequestDuration();
+        c.EnableDeepLinking();
+    });
+}
+
+// Security headers (সব পরিবেশে)
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Content-Security-Policy"] =
+        "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; " +
+        "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'";
+    await next();
 });
 
 // Static files (React build output)
@@ -232,6 +247,10 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 // Middleware pipeline
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 app.UseHttpsRedirection();
 app.UseCors("AllowReactApp");
 

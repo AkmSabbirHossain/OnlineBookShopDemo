@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OnlineBookShop.Server.DTOs;
 using OnlineBookShop.Server.Interfaces;
@@ -8,10 +9,12 @@ using OnlineBookShop.Server.Interfaces;
 public class VendorPayoutController : ControllerBase
 {
     private readonly IVendorPayoutService _payoutService;
+    private readonly IVendorService _vendorService;
 
-    public VendorPayoutController(IVendorPayoutService payoutService)
+    public VendorPayoutController(IVendorPayoutService payoutService, IVendorService vendorService)
     {
         _payoutService = payoutService;
+        _vendorService = vendorService;
     }
 
     // এটি শুধু অ্যাডমিন দেখতে পারবে
@@ -20,11 +23,17 @@ public class VendorPayoutController : ControllerBase
     public async Task<ActionResult<List<VendorPayoutSummaryDto>>> GetPendingSummary()
         => Ok(await _payoutService.GetPendingPayoutSummaryAsync());
 
-    // এটি ভেন্ডর এবং অ্যাডমিন উভয়েই দেখতে পারবে
+    // এটি ভেন্ডর এবং অ্যাডমিন উভয়েই দেখতে পারবে; ভেন্ডর শুধু নিজের ডেটা দেখতে পারবে
     [HttpGet("vendor/{vendorId}/pending-earnings")]
     [Authorize(Roles = "Admin,Vendor")]
     public async Task<ActionResult<List<VendorEarningDto>>> GetVendorPending(int vendorId)
-        => Ok(await _payoutService.GetVendorPendingEarningsAsync(vendorId));
+    {
+        var effectiveVendorId = await ResolveVendorIdAsync(vendorId);
+        if (effectiveVendorId == null)
+            return Forbid();
+
+        return Ok(await _payoutService.GetVendorPendingEarningsAsync(effectiveVendorId.Value));
+    }
 
     // এটি শুধু অ্যাডমিন করতে পারবে
     [HttpPost("process")]
@@ -42,9 +51,27 @@ public class VendorPayoutController : ControllerBase
         }
     }
 
-    // এটি ভেন্ডর এবং অ্যাডমিন উভয়েই দেখতে পারবে
+    // এটি ভেন্ডর এবং অ্যাডমিন উভয়েই দেখতে পারবে; ভেন্ডর শুধু নিজের ডেটা দেখতে পারবে
     [HttpGet("vendor/{vendorId}/history")]
     [Authorize(Roles = "Admin,Vendor")]
     public async Task<ActionResult<List<VendorPayoutDto>>> GetHistory(int vendorId)
-        => Ok(await _payoutService.GetPayoutHistoryAsync(vendorId));
+    {
+        var effectiveVendorId = await ResolveVendorIdAsync(vendorId);
+        if (effectiveVendorId == null)
+            return Forbid();
+
+        return Ok(await _payoutService.GetPayoutHistoryAsync(effectiveVendorId.Value));
+    }
+
+    // অ্যাডমিন route-এর vendorId ব্যবহার করতে পারে; ভেন্ডরকে সবসময় নিজের claims থেকে vendorId বেঁধে দেওয়া হয়
+    private async Task<int?> ResolveVendorIdAsync(int vendorId)
+    {
+        if (User.IsInRole("Admin"))
+            return vendorId;
+
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+        var vendor = await _vendorService.GetVendorByUserIdAsync(userId);
+
+        return vendor?.VendorId;
+    }
 }

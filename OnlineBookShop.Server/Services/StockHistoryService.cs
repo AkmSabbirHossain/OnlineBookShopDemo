@@ -17,12 +17,12 @@ namespace OnlineBookShop.Server.Services
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<StockHistory>> GetByBookIdAsync(int bookId)
+        public async Task<IEnumerable<StockHistory>> GetByBookIdAsync(int bookId, int vendorId)
         {
             return await _unitOfWork.Repository<StockHistory>()
                 .GetQueryable()
                 .Include(h => h.Book)
-                .Where(h => h.BookId == bookId)
+                .Where(h => h.BookId == bookId && h.Book.VendorId == vendorId)
                 .OrderByDescending(h => h.ChangedAt)
                 .AsNoTracking()
                 .ToListAsync();
@@ -58,22 +58,23 @@ namespace OnlineBookShop.Server.Services
             return history;
         }
 
-        public async Task<IEnumerable<StockHistory>> GetRecentChangesAsync(int count = 50)
+        public async Task<IEnumerable<StockHistory>> GetRecentChangesAsync(int vendorId, int count = 50)
         {
             return await _unitOfWork.Repository<StockHistory>()
                 .GetQueryable()
                 .Include(h => h.Book)
+                .Where(h => h.Book.VendorId == vendorId)
                 .OrderByDescending(h => h.ChangedAt)
                 .Take(count)
                 .AsNoTracking()
                 .ToListAsync();
         }
 
-        public async Task<bool> HasHistoryAsync(int bookId)
+        public async Task<bool> HasHistoryAsync(int bookId, int vendorId)
         {
             return await _unitOfWork.Repository<StockHistory>()
                 .GetQueryable()
-                .AnyAsync(h => h.BookId == bookId);
+                .AnyAsync(h => h.BookId == bookId && h.Book.VendorId == vendorId);
         }
 
         // Helper Method

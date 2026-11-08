@@ -43,6 +43,8 @@ namespace OnlineBookShop.Server.Application.Mappings
             // --- Book mappings ---
             CreateMap<BookCreateDto, Book>();
             CreateMap<BookUpdateDto, Book>()
+                .ForMember(dest => dest.IsActive, opt => opt.Ignore())   // শুধু BookStatusUpdateDto endpoint-এ বদলায়
+                .ForMember(dest => dest.IsFeatured, opt => opt.Ignore())
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
             CreateMap<Book, BookResponseDto>()
                 .ForMember(dest => dest.Images, opt => opt.MapFrom(src =>

@@ -323,11 +323,11 @@ namespace OnlineBookShop.Server.Services
             };
         }
 
-        // Revoke Refresh Token (Logout)
-        public async Task RevokeRefreshTokenAsync(string refreshToken)
+        // Revoke Refresh Token (Logout) — শুধু টোকেনের মালিকই revoke করতে পারে
+        public async Task RevokeRefreshTokenAsync(string refreshToken, int userId)
         {
             var storedToken = await _unitOfWork.Repository<RefreshToken>()
-                .GetFirstOrDefaultAsync(t => t.Token == refreshToken);
+                .GetFirstOrDefaultAsync(t => t.Token == refreshToken && t.UserId == userId);
 
             if (storedToken != null)
             {

@@ -42,6 +42,14 @@ namespace OnlineBookShop.Server.Application.Services
             if (dto.Items == null || dto.Items.Count == 0)
                 throw new InvalidOperationException("Order must contain at least one item.");
 
+            // Address must belong to the caller — otherwise an ID lets a customer ship to / read someone else's address.
+            var addressExists = await _unitOfWork.Repository<Address>()
+                .GetQueryable()
+                .AnyAsync(a => a.AddressId == dto.AddressId && a.UserId == userId);
+
+            if (!addressExists)
+                throw new InvalidOperationException("Selected address is not valid for this account.");
+
             Order order;
             var lowStockAlerts = new List<(int BookId, int NewStock, string Title, int VendorUserId)>();
 
@@ -588,11 +596,11 @@ namespace OnlineBookShop.Server.Application.Services
             if (ownItems.Count == 0)
                 throw new UnauthorizedAccessException("This order does not contain any of your products");
 
+            // Vendors may never mark an order Paid or Delivered themselves:
+            // Paid is payment confirmation and Delivered credits vendor earnings — both are Admin-side.
             var allowed = newStatus switch
             {
-                OrderStatus.Paid => order.Status == OrderStatus.Pending,
                 OrderStatus.Shipped => order.Status == OrderStatus.Paid,
-                OrderStatus.Delivered => order.Status is OrderStatus.Shipped or OrderStatus.Delivered,
                 OrderStatus.Cancelled => order.Status == OrderStatus.Pending,
                 _ => false
             };

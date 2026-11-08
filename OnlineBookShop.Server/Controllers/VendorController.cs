@@ -21,9 +21,9 @@ namespace OnlineBookShop.Server.Controllers
             _vendorService = vendorService;
         }
 
-        // ── Vendor Register ──
+        // ── Vendor Register — শুধু Customer রোলের ইউজাররা ভেন্ডর হতে পারে ──
         [HttpPost("register")]
-        [Authorize]
+        [Authorize(Roles = "Customer")]
         public async Task<IActionResult> RegisterVendor([FromBody] VendorRegisterDto dto)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);

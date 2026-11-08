@@ -8,7 +8,7 @@ namespace OnlineBookShop.Server.Interfaces
         Task<AuthResponseDto> LoginAsync(UserLoginDto dto);
         Task<AuthResponseDto> ExternalLoginAsync(ExternalLoginDto dto);
         Task<AuthResponseDto> RefreshTokenAsync(string refreshToken);
-        Task RevokeRefreshTokenAsync(string refreshToken);
+        Task RevokeRefreshTokenAsync(string refreshToken, int userId);
         Task<UserResponseDto?> GetCurrentUserAsync(int userId);
     }
 

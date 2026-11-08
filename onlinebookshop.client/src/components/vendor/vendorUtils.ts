@@ -30,10 +30,12 @@ export const STATUS_META: Record<OrderStatus, { label: string; icon: string; cls
     Cancelled: { label: "Cancelled", icon: "bi-x-circle", cls: "cancelled" },
 };
 
+// Vendors can only ship (or cancel while pending). Payment confirmation (Paid)
+// and delivery (Delivered, which credits earnings) are Admin-side actions.
 export const NEXT_VENDOR_STATUSES: Record<OrderStatus, OrderStatus[]> = {
-    Pending: ["Paid", "Cancelled"],
+    Pending: ["Cancelled"],
     Paid: ["Shipped"],
-    Shipped: ["Delivered"],
+    Shipped: [],
     Delivered: [],
     Cancelled: [],
 };

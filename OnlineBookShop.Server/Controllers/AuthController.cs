@@ -49,9 +49,10 @@ namespace OnlineBookShop.Server.Controllers
                 var user = await _authService.RegisterAsync(dto);
                 return Ok(new { Message = "Registration successful", User = user });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return BadRequest(new { Error = ex.Message });
+                // Generic message — নির্দিষ্ট কারণ (যেমন ইমেইল আগে থেকেই আছে) ফাঁস করলে account enumeration হয়
+                return BadRequest(new { Error = "Registration failed. Please check your details and try again." });
             }
         }
 
@@ -130,7 +131,12 @@ namespace OnlineBookShop.Server.Controllers
             if (string.IsNullOrWhiteSpace(dto?.RefreshToken))
                 return BadRequest(new { Error = "Refresh token is required" });
 
-            await _authService.RevokeRefreshTokenAsync(dto.RefreshToken);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            // Token কলারের নিজের হতে হবে — অন্যের টোকেন revoke করা যাবে না
+            await _authService.RevokeRefreshTokenAsync(dto.RefreshToken, userId);
             return Ok(new { Message = "Refresh token revoked successfully" });
         }
 

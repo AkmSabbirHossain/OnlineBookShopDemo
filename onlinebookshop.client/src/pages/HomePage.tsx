@@ -12,6 +12,7 @@ import Footer from "../components/common/Footer";
 import Seo from "../components/common/Seo";
 import BookCard from "../components/books/BookCard";
 import CreatorCard from "../components/creators/CreatorCard";
+import CreatorStrip from "../components/creators/CreatorStrip";
 import HeroSlider, { HeroSkeleton } from "../components/home/HeroSlider";
 import { useLanguage } from "../i18n/language-context";
 import type { TranslationKey } from "../i18n/translations";
@@ -1715,7 +1716,7 @@ export default function HomePage() {
                                 {authorsLoading ? (
                                     <CreatorSkeletonStrip />
                                 ) : authors.length > 0 ? (
-                                    <div className="cr-strip">
+                                    <CreatorStrip label={t("home.popularWriters")}>
                                         {authors.map((author) => (
                                             <CreatorCard
                                                 key={author.authorId}
@@ -1727,7 +1728,7 @@ export default function HomePage() {
                                                 variant="strip"
                                             />
                                         ))}
-                                    </div>
+                                    </CreatorStrip>
                                 ) : (
                                     <div className="hm-empty hm-empty--compact">
                                         <p className="mb-0">{t("home.writersEmpty")}</p>
@@ -1748,7 +1749,7 @@ export default function HomePage() {
                                 {publishersLoading ? (
                                     <CreatorSkeletonStrip />
                                 ) : publishers.length > 0 ? (
-                                    <div className="cr-strip">
+                                    <CreatorStrip label={t("home.publishers")}>
                                         {publishers.map((publisher) => (
                                             <CreatorCard
                                                 key={publisher.publisherId}
@@ -1760,7 +1761,7 @@ export default function HomePage() {
                                                 variant="strip"
                                             />
                                         ))}
-                                    </div>
+                                    </CreatorStrip>
                                 ) : (
                                     <div className="hm-empty hm-empty--compact">
                                         <p className="mb-0">{t("home.publishersEmpty")}</p>
